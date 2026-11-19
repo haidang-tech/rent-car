@@ -1,5 +1,5 @@
 {
-  "name": "rc-scaffold",
+  "name": "rent-car",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -27,5 +27,8 @@
     "happy-dom": "^21.0.4",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

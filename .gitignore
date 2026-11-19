@@ -31,6 +31,9 @@ pnpm-debug.log*
 Thumbs.db
 desktop.ini
 
+# Vercel
+.vercel/
+
 # Misc
 *.local
 .cache/
