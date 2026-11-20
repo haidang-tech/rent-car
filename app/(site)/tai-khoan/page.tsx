@@ -3,45 +3,45 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, ROLE_HOME } from "@/lib/auth";
-import { cancelBookingAction } from "@/lib/actions/bookings";
+import { BOOKING_SELECT, type OwnedBooking } from "@/lib/booking-queries";
 import { BOOKING_STATUS, currency, dateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Đơn của tôi" };
 
-type BookingRow = {
-  id: string;
-  code: string;
-  status: string;
-  pickup_at: string;
-  return_at: string;
-  pickup_location: string;
-  days: number;
-  total: number;
-  created_at: string;
-  cars: { brand: string; model: string; image_url: string | null; plate: string } | null;
-};
+const QUICK_ACTIONS = [
+  { segment: "ekyc", label: "eKYC", icon: "▣" },
+  { segment: "hop-dong", label: "Hợp đồng", icon: "▤" },
+  { segment: "thanh-toan", label: "Đặt cọc", icon: "▱" },
+  { segment: "gia-han", label: "Gia hạn", icon: "◷" },
+  { segment: "doi-xe", label: "Đổi xe", icon: "⇄" },
+  { segment: "huy", label: "Hủy chuyến", icon: "⊗" },
+  { segment: "su-co", label: "Sự cố", icon: "△" },
+  { segment: "danh-gia", label: "Đánh giá", icon: "☆" },
+];
 
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ huy?: string; loi?: string }>;
+  searchParams: Promise<{ huy?: string; loc?: string }>;
 }) {
   const profile = await getProfile();
   if (!profile) redirect("/dang-nhap?next=/tai-khoan");
-  const { huy, loi } = await searchParams;
+  const { huy, loc } = await searchParams;
 
   const supabase = await createClient();
   const { data } = await supabase
     .from("bookings")
-    .select("id, code, status, pickup_at, return_at, pickup_location, days, total, created_at, cars(brand, model, image_url, plate)")
+    .select(BOOKING_SELECT)
     .eq("user_id", profile.id)
     .order("created_at", { ascending: false });
 
-  const bookings = (data ?? []) as unknown as BookingRow[];
+  const bookings = (data ?? []) as unknown as OwnedBooking[];
   const active = bookings.filter((b) =>
     ["pending", "confirmed", "signed", "handed_over"].includes(b.status),
   );
+  const current = active[0] ?? null;
+  const shown = loc === "active" ? active : loc === "done" ? bookings.filter((b) => !active.includes(b)) : bookings;
 
   return (
     <>
@@ -53,7 +53,7 @@ export default async function AccountPage({
             <span>Tài khoản</span>
           </div>
           <h1>Xin chào, {profile.full_name}</h1>
-          <p>Quản lý đơn thuê, theo dõi lịch nhận xe và lịch sử chuyến đi.</p>
+          <p>Quản lý đơn thuê, hoàn tất eKYC, ký hợp đồng và theo dõi chuyến đi.</p>
         </div>
       </section>
 
@@ -77,18 +77,58 @@ export default async function AccountPage({
 
         <div>
           {huy ? <p className="form-message success">Đã hủy đơn thuê.</p> : null}
-          {loi ? <p className="form-message error">{loi}</p> : null}
+
+          {current ? (
+            <section className="quick-actions" aria-labelledby="quick-title">
+              <div className="quick-head">
+                <div>
+                  <h2 id="quick-title" style={{ fontSize: 18 }}>
+                    Chuyến {current.code}
+                  </h2>
+                  <p className="muted small">
+                    {dateTime(current.pickup_at)} → {dateTime(current.return_at)}
+                  </p>
+                </div>
+                <Link className="button ghost small" href={`/tai-khoan/${current.code}`}>
+                  Chi tiết chuyến
+                </Link>
+              </div>
+              <div className="quick-grid">
+                {QUICK_ACTIONS.map((action) => (
+                  <Link key={action.segment} href={`/tai-khoan/${current.code}/${action.segment}`}>
+                    <span aria-hidden="true">{action.icon}</span>
+                    {action.label}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <div className="section-head" style={{ marginBottom: 16 }}>
             <div>
               <h2 style={{ fontSize: 22 }}>Đơn đang hoạt động</h2>
               <p>{active.length} đơn cần theo dõi</p>
             </div>
+            <div className="filters">
+              {[
+                ["", "Tất cả"],
+                ["active", "Đang xử lý"],
+                ["done", "Đã kết thúc"],
+              ].map(([value, label]) => (
+                <Link
+                  key={label}
+                  className={`chip ${(loc ?? "") === value ? "active" : ""}`}
+                  href={value ? `/tai-khoan?loc=${value}` : "/tai-khoan"}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
 
           <div className="booking-list" style={{ marginBottom: 34 }}>
-            {active.length ? (
-              active.map((booking) => (
+            {shown.length ? (
+              shown.map((booking) => (
                 <article className="booking-row" key={booking.id}>
                   <Image
                     className="thumb"
@@ -111,74 +151,23 @@ export default async function AccountPage({
                       {BOOKING_STATUS[booking.status]?.label ?? booking.status}
                     </span>
                     <strong>{currency(booking.total)}</strong>
-                    {["pending", "confirmed", "signed"].includes(booking.status) ? (
-                      <form action={cancelBookingAction}>
-                        <input type="hidden" name="code" value={booking.code} />
-                        <button className="link-button small" type="submit">
-                          Hủy đơn
-                        </button>
-                      </form>
-                    ) : null}
+                    <Link className="link-button small" href={`/tai-khoan/${booking.code}`}>
+                      Xem chuyến →
+                    </Link>
                   </div>
                 </article>
               ))
             ) : (
               <div className="card">
-                <h2>Chưa có đơn đang hoạt động</h2>
+                <h2>
+                  {loc === "done" ? "Chưa có chuyến đã kết thúc" : "Chưa có đơn đang hoạt động"}
+                </h2>
                 <p>Chọn một chiếc xe và đặt chuyến đi tiếp theo của bạn.</p>
                 <Link className="button" href="/xe" style={{ marginTop: 14 }}>
                   Xem đội xe →
                 </Link>
               </div>
             )}
-          </div>
-
-          <h2 style={{ fontSize: 22, marginBottom: 14 }}>Lịch sử chuyến đi</h2>
-          <div className="panel">
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Mã đơn</th>
-                    <th>Xe</th>
-                    <th>Thời gian thuê</th>
-                    <th>Tổng tiền</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.filter((b) => !active.includes(b)).length ? (
-                    bookings
-                      .filter((b) => !active.includes(b))
-                      .map((booking) => (
-                        <tr key={booking.id}>
-                          <td className="strong">{booking.code}</td>
-                          <td>
-                            {booking.cars?.brand} {booking.cars?.model}
-                            <span className="sub">{booking.cars?.plate}</span>
-                          </td>
-                          <td>
-                            {dateTime(booking.pickup_at)}
-                            <span className="sub">→ {dateTime(booking.return_at)}</span>
-                          </td>
-                          <td>{currency(booking.total)}</td>
-                          <td>
-                            <span className={`badge ${BOOKING_STATUS[booking.status]?.tone ?? "muted"}`}>
-                              {BOOKING_STATUS[booking.status]?.label ?? booking.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="empty">
-                        Chưa có chuyến đi nào đã hoàn tất.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       </div>

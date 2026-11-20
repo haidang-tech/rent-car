@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { syncBookingReadiness } from "@/lib/booking-flow";
 
 const num = (v: FormDataEntryValue | null, fallback = 0) =>
   v === null || v === "" ? fallback : Number(v);
@@ -179,11 +180,17 @@ export async function savePaymentAction(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
   if (id) {
-    const { error } = await supabase
+    const { data: payment, error } = await supabase
       .from("payments")
       .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .select("booking_id, type")
+      .maybeSingle();
     if (error) redirect("/ke-toan/thu-chi?loi=" + encodeURIComponent(error.message));
+
+    if (payment?.booking_id && payment.type === "deposit") {
+      await syncBookingReadiness(payment.booking_id);
+    }
   } else {
     const type = String(formData.get("type") ?? "income");
     const { error } = await supabase.from("payments").insert({
@@ -250,4 +257,160 @@ export async function settleDepositAction(formData: FormData) {
   revalidatePath("/ke-toan/quyet-toan");
   revalidatePath("/ke-toan/thu-chi");
   redirect(back + "?quyettoan=1");
+}
+
+// ------------------------------------------------------------------ customer requests
+export async function verifyKycAction(formData: FormData) {
+  const profile = await guard(["admin", "staff"], "/nhan-vien/yeu-cau");
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const decision = String(formData.get("decision") ?? "verify");
+  const note = String(formData.get("note") ?? "").trim();
+  const back = String(formData.get("back") ?? "/nhan-vien/yeu-cau");
+
+  const { data: kyc } = await supabase
+    .from("kyc_records")
+    .select("id, booking_id, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!kyc) redirect(back + "?loi=" + encodeURIComponent("Không tìm thấy hồ sơ eKYC"));
+
+  const { error } = await supabase
+    .from("kyc_records")
+    .update({
+      status: decision === "verify" ? "verified" : "rejected",
+      note: note || null,
+      reviewed_by: profile.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) redirect(back + "?loi=" + encodeURIComponent(error.message));
+
+  if (decision === "verify") await syncBookingReadiness(kyc.booking_id);
+
+  revalidatePath(back);
+  revalidatePath("/tai-khoan");
+  redirect(back + "?capnhat=1");
+}
+
+export async function decideRequestAction(formData: FormData) {
+  const profile = await guard(["admin", "staff"], "/nhan-vien/yeu-cau");
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const decision = String(formData.get("decision") ?? "reject");
+  const back = String(formData.get("back") ?? "/nhan-vien/yeu-cau");
+
+  const { data: request } = await supabase
+    .from("booking_requests")
+    .select("id, kind, booking_id, desired_return_at, replacement_car_id, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!request || request.status !== "pending") {
+    redirect(back + "?loi=" + encodeURIComponent("Yêu cầu không còn ở trạng thái chờ duyệt"));
+  }
+
+  if (decision === "approve") {
+    const { data: booking } = await supabase
+      .from("bookings")
+      .select("id, car_id, pickup_at, return_at, days, unit_price, deposit")
+      .eq("id", request.booking_id)
+      .maybeSingle();
+
+    if (!booking) redirect(back + "?loi=" + encodeURIComponent("Không tìm thấy đơn thuê"));
+
+    if (request.kind === "extension" && request.desired_return_at) {
+      const { data: free } = await supabase.rpc("is_car_available", {
+        p_car_id: booking.car_id,
+        p_pickup: booking.pickup_at,
+        p_return: request.desired_return_at,
+        p_exclude_booking: booking.id,
+      });
+      if (free === false) {
+        redirect(back + "?loi=" + encodeURIComponent("Xe đã có lịch trong thời gian gia hạn"));
+      }
+
+      const days = Math.max(
+        1,
+        Math.ceil(
+          (new Date(request.desired_return_at).getTime() - new Date(booking.pickup_at).getTime()) /
+            86_400_000,
+        ),
+      );
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          return_at: request.desired_return_at,
+          days,
+          total: days * Number(booking.unit_price) + Number(booking.deposit),
+        })
+        .eq("id", booking.id);
+      if (error) redirect(back + "?loi=" + encodeURIComponent(error.message));
+    }
+
+    if (request.kind === "exchange" && request.replacement_car_id) {
+      const { data: car } = await supabase
+        .from("cars")
+        .select("id, price_per_day")
+        .eq("id", request.replacement_car_id)
+        .maybeSingle();
+      if (!car) redirect(back + "?loi=" + encodeURIComponent("Xe thay thế không tồn tại"));
+
+      const days = Math.max(
+        1,
+        Math.ceil(
+          (new Date(booking.return_at).getTime() - new Date(booking.pickup_at).getTime()) /
+            86_400_000,
+        ),
+      );
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          car_id: car.id,
+          days,
+          unit_price: car.price_per_day,
+          total: days * Number(car.price_per_day) + Number(booking.deposit),
+        })
+        .eq("id", booking.id);
+      if (error) redirect(back + "?loi=" + encodeURIComponent(error.message));
+    }
+  }
+
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({
+      status: decision === "approve" ? "approved" : "rejected",
+      decided_by: profile.id,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) redirect(back + "?loi=" + encodeURIComponent(error.message));
+
+  revalidatePath(back);
+  revalidatePath("/tai-khoan");
+  revalidatePath("/nhan-vien");
+  redirect(back + "?capnhat=1");
+}
+
+export async function approveEstimateAction(formData: FormData) {
+  await guard(["admin", "accountant"], "/ke-toan/duyet-du-toan");
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+
+  const { error } = await supabase
+    .from("maintenance_orders")
+    .update({ status: "approved" })
+    .eq("id", id)
+    .eq("status", "pending");
+
+  if (error) {
+    redirect("/ke-toan/duyet-du-toan?loi=" + encodeURIComponent(error.message));
+  }
+
+  revalidatePath("/ke-toan/duyet-du-toan");
+  revalidatePath("/nhan-vien/bao-duong");
+  redirect("/ke-toan/duyet-du-toan?duyet=1");
 }

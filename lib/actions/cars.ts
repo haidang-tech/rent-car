@@ -117,3 +117,62 @@ export async function savePolicyAction(formData: FormData) {
   revalidatePath("/quan-tri/chinh-sach");
   redirect("/quan-tri/chinh-sach?luu=1");
 }
+
+export async function saveLocationAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const payload = {
+    code: String(formData.get("code") ?? "").trim(),
+    name: String(formData.get("name") ?? "").trim(),
+    type: String(formData.get("type") ?? "hub"),
+    address: String(formData.get("address") ?? "").trim() || null,
+    note: String(formData.get("note") ?? "").trim() || null,
+    active: formData.get("active") !== "off",
+  };
+
+  if (!payload.code || !payload.name) {
+    redirect("/quan-tri/diem-nhan?loi=" + encodeURIComponent("Nhập mã điểm và tên điểm nhận xe"));
+  }
+
+  const { error } = id
+    ? await supabase.from("locations").update(payload).eq("id", id)
+    : await supabase.from("locations").insert(payload);
+
+  if (error) redirect("/quan-tri/diem-nhan?loi=" + encodeURIComponent(error.message));
+
+  revalidatePath("/quan-tri/diem-nhan");
+  revalidatePath("/xe");
+  redirect("/quan-tri/diem-nhan?luu=1");
+}
+
+export async function toggleLocationAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const active = String(formData.get("active") ?? "true") === "true";
+
+  const { error } = await supabase.from("locations").update({ active }).eq("id", id);
+  if (error) redirect("/quan-tri/diem-nhan?loi=" + encodeURIComponent(error.message));
+
+  revalidatePath("/quan-tri/diem-nhan");
+  revalidatePath("/xe");
+  redirect("/quan-tri/diem-nhan?luu=1");
+}
+
+export async function toggleProfileStatusAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "active");
+
+  if (id === admin.id) {
+    redirect("/quan-tri/nhan-vien?loi=" + encodeURIComponent("Không thể khóa tài khoản đang đăng nhập"));
+  }
+
+  const { error } = await supabase.from("profiles").update({ status }).eq("id", id);
+  if (error) redirect("/quan-tri/nhan-vien?loi=" + encodeURIComponent(error.message));
+
+  revalidatePath("/quan-tri/nhan-vien");
+  redirect("/quan-tri/nhan-vien?luu=1");
+}

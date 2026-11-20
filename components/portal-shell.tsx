@@ -15,9 +15,12 @@ export const NAV: Record<Exclude<Role, "customer">, NavItem[]> = {
     { href: "/quan-tri/chinh-sach", label: "Chính sách cọc", icon: "✎" },
     { href: "/quan-tri/nhan-vien", label: "Nhân viên & quyền", icon: "☷" },
     { href: "/quan-tri/lich-xe", label: "Lịch điều phối", icon: "▦" },
+    { href: "/quan-tri/diem-nhan", label: "Điểm giao nhận", icon: "⌖" },
   ],
   staff: [
     { href: "/nhan-vien", label: "Đơn thuê", icon: "▣" },
+    { href: "/nhan-vien/yeu-cau", label: "Yêu cầu khách hàng", icon: "☷" },
+    { href: "/nhan-vien/ekyc", label: "Duyệt giấy tờ", icon: "▤" },
     { href: "/nhan-vien/giao-xe", label: "Giao xe", icon: "➜" },
     { href: "/nhan-vien/tra-xe", label: "Tiếp nhận trả xe", icon: "↙" },
     { href: "/nhan-vien/bao-duong", label: "Bảo dưỡng", icon: "⚙" },
@@ -29,6 +32,7 @@ export const NAV: Record<Exclude<Role, "customer">, NavItem[]> = {
     { href: "/ke-toan/thu-chi", label: "Phiếu thu / chi", icon: "▤" },
     { href: "/ke-toan/phat-nguoi", label: "Phạt nguội", icon: "⚑" },
     { href: "/ke-toan/doi-soat", label: "Đối soát quỹ", icon: "▥" },
+    { href: "/ke-toan/duyet-du-toan", label: "Duyệt dự toán", icon: "✓" },
   ],
 };
 

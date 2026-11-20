@@ -29,7 +29,8 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
     .select("id, full_name, phone, role, branch, status")
     .eq("id", user.id)
     .maybeSingle();
-  return (data as Profile | null) ?? null;
+  if (!data || data.status !== "active") return null;
+  return data as Profile;
 });
 
 export const ROLE_HOME: Record<Role, string> = {
