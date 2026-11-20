@@ -2,6 +2,7 @@ import { workspaces, resolveScreen } from './workspace-config.js';
 import { operationsScreen, escapeHtml as esc, button, fieldMarkup, hint, offlineText } from '../components/workspace-ui.js';
 import { customerScreen } from './customer-views.js';
 import { localDate } from './validation.js';
+import { validateImage } from './upload-validation.js';
 
 const role = document.body.dataset.workspace;
 const config = workspaces[role];
@@ -104,6 +105,8 @@ app.addEventListener('click', event => {
 });
 app.addEventListener('input', event => {
   const target = event.target;
+  const feedback = target.closest('form')?.querySelector('.form-feedback');
+  if (feedback) { feedback.hidden = true; feedback.textContent = ''; }
   if (target.hasAttribute('data-search')) {
     target.closest('.table-card').querySelector('.result-count').textContent = target.value.trim() ? 'Chưa kết nối tìm kiếm dữ liệu' : 'Chưa tải dữ liệu';
   }
@@ -124,14 +127,23 @@ app.addEventListener('change', event => {
     preview.replaceChildren(); target.setCustomValidity('');
     const file = target.files[0];
     if (file) {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
-        target.value = ''; target.setCustomValidity('Chọn ảnh JPG, PNG hoặc WebP không quá 5 MB.');
-        preview.textContent = 'Ảnh không hợp lệ. Vui lòng chọn lại.'; target.reportValidity();
+      const error = validateImage(file);
+      if (error) {
+        target.value = ''; target.setCustomValidity(error);
+        preview.textContent = error; target.reportValidity();
       } else {
         const url = URL.createObjectURL(file); objectUrls.add(url); preview.dataset.url = url;
         const image = new Image(); image.src = url; image.alt = `Xem trước ${file.name}`;
         const label = document.createElement('p'); label.textContent = file.name + ' · Chỉ xem trên thiết bị';
         preview.append(image, label);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'ws-button secondary'; remove.textContent = 'Bỏ ảnh';
+        remove.addEventListener('click', () => {
+          target.value = '';
+          target.dispatchEvent(new Event('change', { bubbles: true }));
+          target.focus();
+        });
+        preview.append(remove);
       }
     }
     if (currentKey === 'identity') {

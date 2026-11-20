@@ -16,7 +16,7 @@ export function fieldMarkup(field, id) {
   let input;
   if (field.type === 'select') input = `<select ${common}><option value="">Chọn ${label.toLocaleLowerCase('vi')}</option>${field.options.map(value => `<option>${escapeHtml(value)}</option>`).join('')}</select>`;
   else if (field.type === 'textarea') input = `<textarea ${common} rows="4" maxlength="2000" placeholder="${escapeHtml(field.placeholder || 'Nhập nội dung')}"></textarea>`;
-  else input = `<input ${common} type="${field.type || 'text'}" ${field.min !== undefined ? `min="${field.min}"` : ''} ${field.max !== undefined ? `max="${field.max}"` : ''} ${field.type === 'number' ? 'step="any"' : ''} placeholder="${escapeHtml(field.placeholder || 'Chưa có dữ liệu')}" ${field.type === 'text' ? 'maxlength="150"' : ''}>`;
+  else input = `<input ${common} type="${field.type || 'text'}" ${field.min !== undefined ? `min="${field.min}"` : ''} ${field.max !== undefined ? `max="${field.max}"` : ''} ${field.type === 'number' ? `step="${field.step ?? 1}"` : ''} placeholder="${escapeHtml(field.placeholder || 'Chưa có dữ liệu')}" ${field.type === 'text' ? 'maxlength="150"' : ''}>`;
   return `<div class="ws-field${field.type === 'textarea' ? ' wide' : ''}"><label for="${id}">${label}${field.required ? ' <span aria-hidden="true">*</span>' : ''}${field.suffix ? ` (${escapeHtml(field.suffix)})` : ''}</label>${input}</div>`;
 }
 export function upload(label, id, required = false) {
