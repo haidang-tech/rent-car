@@ -132,3 +132,55 @@ test('Sensitive operations show offline notice and do not create transaction rec
   assert.equal(f.document.querySelectorAll('tbody tr').length, 1);
   await f.close();
 });
+
+test('Image previews update eKYC progress, support removal and release URLs on navigation', async () => {
+  const f = await fixture('customer');
+  const nativeCreate = URL.createObjectURL;
+  const nativeRevoke = URL.revokeObjectURL;
+  const nativeEvent = globalThis.Event;
+  const created = [];
+  const revoked = [];
+  URL.createObjectURL = () => { const url = `blob:test-${created.length}`; created.push(url); return url; };
+  URL.revokeObjectURL = url => revoked.push(url);
+  globalThis.Event = f.window.Event;
+  try {
+    await f.route('identity');
+    const inputs = [...f.document.querySelectorAll('.identity-grid input')];
+    for (const input of inputs) {
+      const transfer = new f.window.DataTransfer();
+      transfer.items.add(new f.window.File(['image contents'], 'photo.png', { type: 'image/png' }));
+      input.files = transfer.files;
+      input.dispatchEvent(new f.window.Event('change', { bubbles: true }));
+    }
+    assert.equal(f.document.querySelector('#identity-count').textContent, '4/4');
+    assert.equal(f.document.querySelectorAll('.file-preview img').length, 4);
+    f.document.querySelector('.file-preview button').click();
+    assert.equal(f.document.querySelector('#identity-count').textContent, '3/4');
+    assert.deepEqual(revoked, ['blob:test-0']);
+    await f.route('trips');
+    assert.equal(new Set(revoked).size, 4);
+    assert.equal(f.window.localStorage.length, 0);
+  } finally {
+    URL.createObjectURL = nativeCreate;
+    URL.revokeObjectURL = nativeRevoke;
+    globalThis.Event = nativeEvent;
+    await f.close();
+  }
+});
+
+test('Editing a form clears stale validation feedback and seats require whole numbers', async () => {
+  const f = await fixture('admin');
+  await f.route('car-new');
+  const seats = f.document.querySelector('input[type="number"]');
+  seats.value = '5.5';
+  assert.equal(seats.checkValidity(), false);
+  seats.value = '5';
+  assert.equal(seats.checkValidity(), true);
+  const feedback = f.document.querySelector('.form-feedback');
+  feedback.hidden = false;
+  feedback.textContent = 'Old feedback';
+  seats.dispatchEvent(new f.window.Event('input', { bubbles: true }));
+  assert.equal(feedback.hidden, true);
+  assert.equal(feedback.textContent, '');
+  await f.close();
+});
