@@ -115,10 +115,10 @@ const contracts = [
 ];
 
 const vehicle_checks = [
-  { id: ID(601), booking_id: ID(404), kind: "handover", odometer: 14600, battery: 96, accessories: "Sạc tại nhà, cáp Type 2, áo phủ", checked_by: "Lê Văn Sơn" },
-  { id: ID(602), booking_id: ID(408), kind: "handover", odometer: 25400, battery: 88, accessories: "Sạc tại nhà, cáp Type 2", checked_by: "Lê Văn Sơn" },
+  { id: ID(601), booking_id: ID(404), kind: "handover", odometer: 14600, battery: 96, accessories: "Sạc tại nhà, cáp Type 2, áo phủ", checked_by: "Lê Văn Sơn", fees: 0 },
+  { id: ID(602), booking_id: ID(408), kind: "handover", odometer: 25400, battery: 88, accessories: "Sạc tại nhà, cáp Type 2", checked_by: "Lê Văn Sơn", fees: 0 },
   { id: ID(603), booking_id: ID(405), kind: "return", odometer: 7654, battery: 41, damage_note: "Xước nhẹ cản sau bên phải", checked_by: "Lê Văn Sơn", fees: 450000 },
-  { id: ID(604), booking_id: ID(406), kind: "return", odometer: 18420, battery: 55, damage_note: "Không phát sinh", checked_by: "Trần Văn Hải" },
+  { id: ID(604), booking_id: ID(406), kind: "return", odometer: 18420, battery: 55, damage_note: "Không phát sinh", checked_by: "Trần Văn Hải", fees: 0 },
 ];
 
 const payments = [
