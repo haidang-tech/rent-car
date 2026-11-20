@@ -51,47 +51,26 @@ export async function createBookingAction(
   };
 }
 
-export async function cancelBookingAction(formData: FormData) {
-  const supabase = await createClient();
-  const code = String(formData.get("code") ?? "");
-  const { error } = await supabase.rpc("cancel_booking", { p_code: code });
-  if (error) redirect(`/tai-khoan?loi=${encodeURIComponent(error.message)}`);
-  revalidatePath("/tai-khoan");
-  revalidatePath("/quan-tri/don");
-  redirect("/tai-khoan?huy=1");
-}
-
 export async function updateBookingStatusAction(formData: FormData) {
   const profile = await getProfile();
-  if (!profile || !["admin", "staff", "accountant"].includes(profile.role)) {
-    redirect("/dang-nhap");
+  if (!profile || !["admin", "staff"].includes(profile.role)) {
+    redirect("/dang-nhap?next=/quan-tri/don");
   }
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
-  const status = String(formData.get("status") ?? "");
-  const back = String(formData.get("back") ?? "/quan-tri/don");
-
-  const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
-  if (error) redirect(`${back}?loi=${encodeURIComponent(error.message)}`);
-
-  if (status === "signed") {
-    await supabase
-      .from("contracts")
-      .upsert(
-        {
-          code: `HD-${String(formData.get("code") ?? "").replace("LD-", "")}`,
-          booking_id: id,
-          customer_signed: true,
-          signed_at: new Date().toISOString(),
-          status: "active",
-        },
-        { onConflict: "code" },
-      );
-  }
+  const { data, error } = await supabase
+    .from("bookings")
+    .update({ status: "confirmed" })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) redirect(`/quan-tri/don?loi=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/quan-tri/don?loi=" + encodeURIComponent("Đơn không còn chờ xác nhận."));
 
   revalidatePath("/quan-tri/don");
   revalidatePath("/nhan-vien");
   revalidatePath("/ke-toan");
-  revalidatePath(back);
-  redirect(`${back}?capnhat=1`);
+  revalidatePath("/tai-khoan", "layout");
+  redirect("/quan-tri/don?capnhat=1");
 }

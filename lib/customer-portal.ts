@@ -12,7 +12,7 @@ export const getMyTrip = cache(async (code: string) => {
   const { data, error } = await db.from("bookings").select("*, cars(id,code,brand,model,seats,fuel,transmission,image_url,price_per_day,status)").eq("code", code).eq("user_id", profile.id).maybeSingle();
   if (error) throw new Error("Không tải được chuyến thuê. Vui lòng thử lại.");
   if (!data) notFound();
-  return { profile, db, trip: data as unknown as Trip };
+  return { profile, db, trip: data as unknown as Trip, requestTime: Date.now() };
 });
 export const ACCOUNT_ROUTES = [
   ["", "Chi tiết chuyến"], ["ekyc", "Xác thực giấy tờ"], ["hop-dong", "Hợp đồng"], ["thanh-toan", "Tiền cọc"], ["gia-han", "Gia hạn"], ["doi-xe", "Đổi xe"], ["huy", "Hủy chuyến"], ["su-co", "Báo sự cố"], ["danh-gia", "Đánh giá"]

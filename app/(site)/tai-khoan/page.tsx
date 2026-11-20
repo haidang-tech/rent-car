@@ -3,45 +3,43 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, ROLE_HOME } from "@/lib/auth";
-import { BOOKING_SELECT, type OwnedBooking } from "@/lib/booking-queries";
+import { ACCOUNT_ROUTES, type Trip } from "@/lib/customer-portal";
 import { BOOKING_STATUS, currency, dateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Đơn của tôi" };
 
-const QUICK_ACTIONS = [
-  { segment: "ekyc", label: "eKYC", icon: "▣" },
-  { segment: "hop-dong", label: "Hợp đồng", icon: "▤" },
-  { segment: "thanh-toan", label: "Đặt cọc", icon: "▱" },
-  { segment: "gia-han", label: "Gia hạn", icon: "◷" },
-  { segment: "doi-xe", label: "Đổi xe", icon: "⇄" },
-  { segment: "huy", label: "Hủy chuyến", icon: "⊗" },
-  { segment: "su-co", label: "Sự cố", icon: "△" },
-  { segment: "danh-gia", label: "Đánh giá", icon: "☆" },
-];
+const ACTIVE_STATUSES = ["pending", "confirmed", "signed", "handed_over"];
+
+const QUICK_ACTIONS = ACCOUNT_ROUTES.filter(([path]) => path !== "");
 
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ huy?: string; loc?: string }>;
+  searchParams: Promise<{ loc?: string }>;
 }) {
   const profile = await getProfile();
   if (!profile) redirect("/dang-nhap?next=/tai-khoan");
-  const { huy, loc } = await searchParams;
+  const { loc } = await searchParams;
 
   const supabase = await createClient();
   const { data } = await supabase
     .from("bookings")
-    .select(BOOKING_SELECT)
+    .select(
+      "*, cars(id, code, brand, model, seats, fuel, transmission, image_url, price_per_day, status)",
+    )
     .eq("user_id", profile.id)
     .order("created_at", { ascending: false });
 
-  const bookings = (data ?? []) as unknown as OwnedBooking[];
-  const active = bookings.filter((b) =>
-    ["pending", "confirmed", "signed", "handed_over"].includes(b.status),
-  );
+  const bookings = (data ?? []) as unknown as Trip[];
+  const active = bookings.filter((trip) => ACTIVE_STATUSES.includes(trip.status));
   const current = active[0] ?? null;
-  const shown = loc === "active" ? active : loc === "done" ? bookings.filter((b) => !active.includes(b)) : bookings;
+  const shown =
+    loc === "active"
+      ? active
+      : loc === "done"
+        ? bookings.filter((trip) => !ACTIVE_STATUSES.includes(trip.status))
+        : bookings;
 
   return (
     <>
@@ -53,7 +51,7 @@ export default async function AccountPage({
             <span>Tài khoản</span>
           </div>
           <h1>Xin chào, {profile.full_name}</h1>
-          <p>Quản lý đơn thuê, hoàn tất eKYC, ký hợp đồng và theo dõi chuyến đi.</p>
+          <p>Quản lý chuyến thuê, hoàn tất giấy tờ, ký hợp đồng và theo dõi tiền cọc.</p>
         </div>
       </section>
 
@@ -76,8 +74,6 @@ export default async function AccountPage({
         </aside>
 
         <div>
-          {huy ? <p className="form-message success">Đã hủy đơn thuê.</p> : null}
-
           {current ? (
             <section className="quick-actions" aria-labelledby="quick-title">
               <div className="quick-head">
@@ -94,10 +90,9 @@ export default async function AccountPage({
                 </Link>
               </div>
               <div className="quick-grid">
-                {QUICK_ACTIONS.map((action) => (
-                  <Link key={action.segment} href={`/tai-khoan/${current.code}/${action.segment}`}>
-                    <span aria-hidden="true">{action.icon}</span>
-                    {action.label}
+                {QUICK_ACTIONS.map(([segment, label]) => (
+                  <Link key={segment} href={`/tai-khoan/${current.code}/${segment}`}>
+                    {label}
                   </Link>
                 ))}
               </div>
@@ -128,30 +123,30 @@ export default async function AccountPage({
 
           <div className="booking-list" style={{ marginBottom: 34 }}>
             {shown.length ? (
-              shown.map((booking) => (
-                <article className="booking-row" key={booking.id}>
+              shown.map((trip) => (
+                <article className="booking-row" key={trip.id}>
                   <Image
                     className="thumb"
-                    src={booking.cars?.image_url || "/images/vf5.png"}
+                    src={trip.cars?.image_url || "/images/vf5.png"}
                     alt=""
                     width={76}
                     height={54}
                   />
                   <div>
                     <h3>
-                      {booking.cars?.brand} {booking.cars?.model} · {booking.code}
+                      {trip.cars?.brand} {trip.cars?.model} · {trip.code}
                     </h3>
                     <p className="meta">
-                      {dateTime(booking.pickup_at)} → {dateTime(booking.return_at)} ·{" "}
-                      {booking.pickup_location}
+                      {dateTime(trip.pickup_at)} → {dateTime(trip.return_at)} ·{" "}
+                      {trip.pickup_location}
                     </p>
                   </div>
                   <div className="booking-side">
-                    <span className={`badge ${BOOKING_STATUS[booking.status]?.tone ?? "muted"}`}>
-                      {BOOKING_STATUS[booking.status]?.label ?? booking.status}
+                    <span className={`badge ${BOOKING_STATUS[trip.status]?.tone ?? "muted"}`}>
+                      {BOOKING_STATUS[trip.status]?.label ?? trip.status}
                     </span>
-                    <strong>{currency(booking.total)}</strong>
-                    <Link className="link-button small" href={`/tai-khoan/${booking.code}`}>
+                    <strong>{currency(trip.total)}</strong>
+                    <Link className="link-button small" href={`/tai-khoan/${trip.code}`}>
                       Xem chuyến →
                     </Link>
                   </div>
@@ -159,9 +154,7 @@ export default async function AccountPage({
               ))
             ) : (
               <div className="card">
-                <h2>
-                  {loc === "done" ? "Chưa có chuyến đã kết thúc" : "Chưa có đơn đang hoạt động"}
-                </h2>
+                <h2>{loc === "done" ? "Chưa có chuyến đã kết thúc" : "Chưa có đơn đang hoạt động"}</h2>
                 <p>Chọn một chiếc xe và đặt chuyến đi tiếp theo của bạn.</p>
                 <Link className="button" href="/xe" style={{ marginTop: 14 }}>
                   Xem đội xe →

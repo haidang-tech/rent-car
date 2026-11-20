@@ -10,6 +10,7 @@ type Props = {
   pricePerDay: number;
   deposit: number;
   locations: string[];
+  locationError?: string;
   defaults: { name: string; phone: string; email: string };
 };
 
@@ -18,7 +19,7 @@ const localInput = (d: Date) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export function BookingForm({ carId, pricePerDay, deposit, locations, defaults }: Props) {
+export function BookingForm({ carId, pricePerDay, deposit, locations, locationError, defaults }: Props) {
   const start = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -95,7 +96,8 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, defaults }
         </label>
         <label className="field full">
           <span>Điểm nhận xe</span>
-          <select name="pickup_location" defaultValue={locations[0]}>
+          <select name="pickup_location" defaultValue={locations[0] ?? ""} required disabled={!locations.length}>
+            {!locations.length ? <option value="">Chưa có điểm nhận đang hoạt động</option> : null}
             {locations.map((l) => (
               <option key={l} value={l}>
                 {l}
@@ -147,8 +149,9 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, defaults }
       </div>
 
       {state?.error ? <p className="form-message error">{state.error}</p> : null}
+      {locationError ? <p className="form-message error" role="alert">Không tải được địa điểm nhận xe. Vui lòng thử lại sau.</p> : !locations.length ? <p className="form-message error" role="status">Hiện chưa có điểm nhận đang hoạt động. Chưa thể gửi yêu cầu thuê.</p> : null}
 
-      <button className="button" type="submit" disabled={pending} style={{ width: "100%" }}>
+      <button className="button" type="submit" disabled={pending || !locations.length || Boolean(locationError)} style={{ width: "100%" }}>
         {pending ? "Đang gửi…" : "Gửi yêu cầu đặt xe →"}
       </button>
       <p className="field-hint" style={{ marginTop: 10 }}>

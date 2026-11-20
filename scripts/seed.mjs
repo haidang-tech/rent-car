@@ -201,15 +201,14 @@ async function seedAccounts() {
   const { data: refreshed, error: listError } = await db.auth.admin.listUsers({ perPage: 200 });
   if (listError) throw listError;
   const customerId = refreshed.users.find((u) => u.email === "khach@laidi.vn")?.id;
-  const { data: existing } = await db
+  if (!customerId) throw new Error("Demo customer account was not created.");
+  const { error: linkError } = await db
     .from("bookings")
-    .select("id")
-    .eq("code", "LD-2603-1042")
-    .maybeSingle();
-  if (existing) {
-    await db.from("bookings").update({ user_id: customerId }).eq("id", existing.id);
-    console.log("✓ linked demo booking to customer account");
-  }
+    .update({ user_id: customerId })
+    .in("code", ["LD-2603-1042", "LD-2603-1047"]);
+  if (linkError) throw new Error(`bookings: ${linkError.message}`);
+  console.log("✓ linked demo bookings to customer account");
+  return customerId;
 }
 
 async function main() {
@@ -224,7 +223,34 @@ async function main() {
   await upsert("maintenance_orders", maintenance_orders, "id");
   await upsert("incidents", incidents, "id");
   await upsert("fines", fines, "id");
-  await seedAccounts();
+  const customerId = await seedAccounts();
+  await upsert("booking_requests", [
+    {
+      id: ID(1101),
+      code: "YC-DEMO-001",
+      booking_id: ID(401),
+      user_id: customerId,
+      kind: "extension",
+      desired_return_at: at(7, 18),
+      reason: "Khách muốn gia hạn thêm một ngày.",
+      status: "pending",
+    },
+  ]);
+  await upsert(
+    "reviews",
+    [
+      {
+        id: ID(1102),
+        booking_id: ID(406),
+        user_id: customerId,
+        car_id: ID(1),
+        car_rating: 5,
+        service_rating: 5,
+        comment: "Xe sạch, nhận và trả xe thuận tiện.",
+      },
+    ],
+    "booking_id",
+  );
   console.log("\nSeed hoàn tất.");
 }
 

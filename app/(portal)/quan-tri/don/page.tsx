@@ -51,7 +51,7 @@ export default async function AdminBookingsPage({
       <div className="page-head">
         <div>
           <h1>Đơn thuê</h1>
-          <p>Xác nhận, ký hợp đồng và theo dõi toàn bộ vòng đời đơn thuê.</p>
+          <p>Xác nhận yêu cầu thuê và theo dõi vòng đời đơn. Trạng thái ký được cập nhật sau khi khách hoàn tất eKYC, xác nhận hợp đồng và kế toán ghi nhận đủ tiền cọc.</p>
         </div>
       </div>
 
@@ -116,17 +116,8 @@ export default async function AdminBookingsPage({
                       {b.status === "pending" ? (
                         <form action={updateBookingStatusAction}>
                           <input type="hidden" name="id" value={b.id} />
-                          <input type="hidden" name="code" value={b.code} />
                           <input type="hidden" name="status" value="confirmed" />
-                          <button className="chip" type="submit">Xác nhận</button>
-                        </form>
-                      ) : null}
-                      {b.status === "confirmed" ? (
-                        <form action={updateBookingStatusAction}>
-                          <input type="hidden" name="id" value={b.id} />
-                          <input type="hidden" name="code" value={b.code} />
-                          <input type="hidden" name="status" value="signed" />
-                          <button className="chip" type="submit">Ký hợp đồng</button>
+                          <button className="chip" type="submit">Xác nhận đơn</button>
                         </form>
                       ) : null}
                       {b.status === "signed" ? (

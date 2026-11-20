@@ -25,7 +25,7 @@ export default async function CarDetailPage({
 }) {
   const { code } = await params;
   const supabase = await createClient();
-  const [{ data: car }, { data: locations }] = await Promise.all([
+  const [{ data: car }, { data: locations, error: locationError }] = await Promise.all([
     supabase.from("cars").select("*").eq("code", code).maybeSingle(),
     supabase.from("locations").select("name").eq("active", true),
   ]);
@@ -117,7 +117,8 @@ export default async function CarDetailPage({
               carId={car.id}
               pricePerDay={Number(car.price_per_day)}
               deposit={Number(car.deposit)}
-              locations={locationNames.length ? locationNames : ["Lái Đi Đà Nẵng"]}
+              locations={locationNames}
+              locationError={locationError?.message}
               defaults={{
                 name: profile?.full_name ?? "",
                 phone: profile?.phone ?? "",

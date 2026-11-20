@@ -9,37 +9,38 @@
 - Trang chủ, đội xe, lọc theo ngày / số chỗ / nhiên liệu
 - Chi tiết xe, kiểm tra lịch trống theo thời gian thực
 - Đặt xe trực tuyến (RPC `create_booking` kiểm tra trùng lịch, tính tiền)
-- Đăng ký / đăng nhập, xem và hủy đơn của mình
+- Đăng ký / đăng nhập, quản lý chuyến, gửi eKYC để nhân viên duyệt và xác nhận hợp đồng
+- Gửi yêu cầu ghi nhận tiền cọc, gia hạn, đổi xe, hủy chuyến, báo sự cố và đánh giá
 
 **Quản trị (`/quan-tri`)**
 - Tổng quan doanh thu, đơn, tình trạng đội xe
-- CRUD xe, bảng giá & phụ thu, chính sách cọc, phân quyền nhân viên
+- CRUD xe, bảng giá & phụ thu, chính sách cọc, điểm giao nhận và phân quyền nhân viên
 - Lịch điều phối xe 5 tuần, cập nhật trạng thái đơn
 
 **Nhân viên giao xe (`/nhan-vien`)**
 - Danh sách đơn, bàn giao xe (ODO, pin, phụ kiện), tiếp nhận trả xe (phí phát sinh)
-- Lệnh bảo dưỡng, sự cố & đổi xe
+- Duyệt eKYC, xử lý yêu cầu khách, lệnh bảo dưỡng, sự cố & đổi xe
 
 **Kế toán (`/ke-toan`)**
-- Hợp đồng điện tử, quyết toán cọc, phiếu thu/chi, phạt nguội, đối soát quỹ
+- Hợp đồng điện tử, quyết toán cọc, phiếu thu/chi, phạt nguội, duyệt dự toán, đối soát quỹ
 
 ## Công nghệ
 
 - Next.js 16 (App Router, Server Actions), React 19, TypeScript
 - Supabase: Postgres + Row Level Security + Auth
-- CSS thuần theo design system của bộ thiết kế (`client/` là bản prototype tĩnh)
+- CSS thuần theo design system của bộ thiết kế
 
 ## Cấu trúc
 
 ```
-app/(site)/          website khách hàng
-app/(portal)/        quan-tri · nhan-vien · ke-toan
-components/          UI dùng chung
-lib/actions/         server actions (auth, booking, xe, nghiệp vụ)
+app/(site)/          website khách hàng và cổng chuyến thuê
+app/(portal)/        quản trị · nhân viên · kế toán
+components/          giao diện dùng chung
+lib/actions/         server actions (auth, đặt xe, quản lý, nghiệp vụ)
 lib/supabase/        client / server / admin
-supabase/migrations/ schema + RLS
+supabase/migrations/ schema, RLS, Storage và workflow
 scripts/seed.mjs     nạp dữ liệu mẫu (idempotent)
-client/              prototype HTML/CSS gốc (tham chiếu thiết kế)
+docs/screens.md      bản đồ màn hình đã chuyển từ prototype
 .work/               ảnh thiết kế 4 vai trò
 ```
 
@@ -66,7 +67,8 @@ supabase link --project-ref <project-ref>
 supabase db push
 ```
 
-Hoặc dán `supabase/migrations/0001_init.sql` vào SQL Editor của Supabase.
+Các migration phải được áp dụng theo thứ tự (`0001_init.sql` trở đi). Nếu dùng SQL Editor,
+dán lần lượt toàn bộ các file trong `supabase/migrations/`.
 
 4. Nạp dữ liệu mẫu
 
@@ -78,6 +80,15 @@ node --env-file=.env.local scripts/seed.mjs
 
 ```bash
 npm run dev
+```
+
+Chạy kiểm tra:
+
+```bash
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
 
 ## Tài khoản demo

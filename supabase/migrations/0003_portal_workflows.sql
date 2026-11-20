@@ -7,6 +7,7 @@ $$;
 
 -- A customer must not promote/unlock their own account through the old self-update policy.
 drop policy if exists "profiles update self" on public.profiles;
+drop policy if exists "profiles admin update" on public.profiles;
 create policy "profiles admin update" on public.profiles for update to authenticated
 using (public.current_user_role()='admin') with check (public.current_user_role()='admin');
 grant update on public.profiles to authenticated;
@@ -29,6 +30,24 @@ begin
   update public.maintenance_orders set status='approved' where id=p_id and status='pending';
   if not found then raise exception 'Dự toán không còn ở trạng thái chờ duyệt'; end if;
 end $$;
+create or replace function public.guard_maintenance_status() returns trigger
+language plpgsql security definer set search_path=public as $$
+declare v_role text:=public.current_user_role();
+begin
+ if auth.role()='service_role' then return new; end if;
+ if tg_op='INSERT' then
+  if new.status<>'pending' then raise exception 'Lệnh bảo dưỡng mới phải chờ duyệt dự toán'; end if;
+  return new;
+ end if;
+ if new.status is not distinct from old.status then return new; end if;
+ if old.status='pending' and new.status='approved' and v_role in ('admin','accountant') then return new; end if;
+ if old.status='approved' and new.status='in_progress' and v_role in ('admin','staff') then return new; end if;
+ if old.status='in_progress' and new.status='completed' and v_role in ('admin','staff') then return new; end if;
+ raise exception 'Chuyển trạng thái dự toán bảo dưỡng không hợp lệ';
+end $$;
+drop trigger if exists maintenance_status_guard on public.maintenance_orders;
+create trigger maintenance_status_guard before insert or update on public.maintenance_orders
+for each row execute function public.guard_maintenance_status();
 
 alter table public.booking_requests drop constraint if exists booking_requests_kind_check;
 alter table public.booking_requests add constraint booking_requests_kind_check check(kind in ('extension','exchange','cancellation','incident'));
@@ -37,6 +56,12 @@ alter table public.booking_requests add column if not exists decision_note text;
 alter table public.contracts add column if not exists terms_snapshot jsonb;
 alter table public.contracts add column if not exists accepted_version text;
 alter table public.bookings add column if not exists policy_snapshot jsonb;
+
+-- Policies below are meaningless unless RLS is enabled on the new tables.
+alter table public.kyc_records enable row level security;
+alter table public.booking_requests enable row level security;
+alter table public.reviews enable row level security;
+
 create or replace function public.capture_booking_policy() returns trigger
 language plpgsql security definer set search_path=public as $$
 begin
@@ -45,6 +70,7 @@ begin
   end if;
   return new;
 end $$;
+drop trigger if exists booking_policy_snapshot on public.bookings;
 create trigger booking_policy_snapshot before insert on public.bookings for each row execute function public.capture_booking_policy();
 
 -- Private buckets and immutable uploads; MIME/size limits also enforced by Storage.
@@ -55,6 +81,9 @@ create policy "review photos owner or staff" on storage.objects for select to au
 drop policy if exists "kyc upload own" on storage.objects;
 create policy "kyc upload own" on storage.objects for insert to authenticated with check
 (bucket_id='kyc' and public.current_user_role()<>'anon' and (storage.foldername(name))[1]=auth.uid()::text);
+drop policy if exists "kyc read owner or staff" on storage.objects;
+create policy "kyc read owner or staff" on storage.objects for select to authenticated using
+(bucket_id='kyc' and public.current_user_role()<>'anon' and ((storage.foldername(name))[1]=auth.uid()::text or public.current_user_role() in ('admin','staff')));
 drop policy if exists "review photos upload own" on storage.objects;
 create policy "review photos upload own" on storage.objects for insert to authenticated with check
 (bucket_id='review-photos' and public.current_user_role()<>'anon' and (storage.foldername(name))[1]=auth.uid()::text);
@@ -75,7 +104,7 @@ create policy "requests read" on public.booking_requests for select to authentic
 revoke insert,update,delete on public.kyc_records,public.booking_requests,public.reviews from anon,authenticated;
 drop policy if exists "reviews read" on public.reviews;
 create policy "reviews read" on public.reviews for select to authenticated using(public.owns_portal_booking(booking_id) or public.current_user_role() in ('admin','staff','accountant'));
-revoke execute on function public.cancel_my_booking(text,text),public.cancel_booking(text) from public,anon,authenticated;
+revoke execute on function public.cancel_booking(text) from public,anon,authenticated;
 
 create or replace function public.validate_portal_paths(p_paths text[],p_bucket text) returns void
 language plpgsql security definer set search_path=public as $$
@@ -242,6 +271,7 @@ begin
  end if;
  return new;
 end $$;
+drop trigger if exists enforce_booking_workflow on public.bookings;
 create trigger enforce_booking_workflow before update on public.bookings for each row execute function public.booking_workflow_guard();
 
 -- Internal helper cannot be called directly by customers.
@@ -260,7 +290,9 @@ language plpgsql security definer set search_path=public as $$
 begin
  perform public.refresh_booking_readiness(new.booking_id); return new;
 end $$;
+drop trigger if exists payment_ready on public.payments;
 create trigger payment_ready after insert or update on public.payments for each row execute function public.payment_contract_readiness();
+drop trigger if exists contract_ready on public.contracts;
 create trigger contract_ready after insert or update on public.contracts for each row execute function public.payment_contract_readiness();
 
 -- Explicit privileges; PostgreSQL otherwise grants function EXECUTE to PUBLIC.

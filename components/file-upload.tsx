@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { IMAGE_ACCEPT, validateImage } from "@/lib/validation";
 export function FileUpload({ name, label, required = false }: { name: string; label: string; required?: boolean }) {
@@ -11,5 +12,5 @@ export function FileUpload({ name, label, required = false }: { name: string; la
     const message = file ? validateImage(file) : null;
     event.target.setCustomValidity(message || ""); setError(message || "");
     setPreview(file && !message ? URL.createObjectURL(file) : "");
-  }} /><small id={`${name}-help`}>JPG, PNG, WebP · tối đa 5 MB. Ảnh được tải lên khi gửi biểu mẫu.</small>{error && <p role="alert" className="form-message error">{error}</p>}{preview && <div className="upload-preview">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={preview} alt={`Xem trước ${label}`} /><button type="button" className="button ghost small" onClick={() => { if (input.current) { input.current.value = ""; input.current.setCustomValidity(""); } setPreview(""); setError(""); }}>Bỏ ảnh</button></div>}</div>;
+  }} /><small id={`${name}-help`}>JPG, PNG, WebP · tối đa 5 MB. Ảnh được tải lên khi gửi biểu mẫu.</small>{error && <p role="alert" className="form-message error">{error}</p>}{preview && <div className="upload-preview"><Image src={preview} alt={`Xem trước ${label}`} width={320} height={200} unoptimized /><button type="button" className="button ghost small" onClick={() => { if (input.current) { input.current.value = ""; input.current.setCustomValidity(""); } setPreview(""); setError(""); }}>Bỏ ảnh</button></div>}</div>;
 }

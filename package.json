@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:client": "node scripts/serve.mjs",
-    "test:client": "node --test tests/*.test.mjs"
+    "test": "node --test tests/validation.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -24,7 +23,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
-    "happy-dom": "^21.0.4",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
   },

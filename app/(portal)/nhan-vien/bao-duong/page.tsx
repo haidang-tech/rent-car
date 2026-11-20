@@ -20,8 +20,10 @@ export default async function MaintenancePage({
     supabase.from("cars").select("id, model, plate").order("model"),
   ]);
 
-  const next = (status: string) =>
-    status === "pending" ? "approved" : status === "approved" ? "in_progress" : "completed";
+  const next: Record<string, string> = {
+    approved: "in_progress",
+    in_progress: "completed",
+  };
 
   return (
     <>
@@ -81,18 +83,20 @@ export default async function MaintenancePage({
                       </span>
                     </td>
                     <td>
-                      {order.status !== "completed" ? (
+                      {next[order.status] ? (
                         <form action={saveMaintenanceAction}>
                           <input type="hidden" name="id" value={order.id} />
-                          <input type="hidden" name="status" value={next(order.status)} />
+                          <input type="hidden" name="status" value={next[order.status]} />
                           <input type="hidden" name="actual" value={order.estimate} />
                           <button className="chip" type="submit">
-                            {CHECK_STATUS[next(order.status)]?.label}
+                            {CHECK_STATUS[next[order.status]]?.label}
                           </button>
                         </form>
-                      ) : (
+                      ) : order.status === "pending" ? (
+                        <span className="badge warn">Chờ kế toán duyệt dự toán</span>
+                      ) : order.status === "completed" ? (
                         <span className="badge success">Đã nghiệm thu</span>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}
