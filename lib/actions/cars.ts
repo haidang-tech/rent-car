@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { vnDateKey } from "@/lib/time";
 
 async function requireAdmin() {
   const profile = await getProfile();
@@ -116,6 +117,9 @@ export async function savePolicyAction(formData: FormData) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
     redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Ngày hiệu lực không hợp lệ"));
   }
+  if (vnDateKey(`${effectiveFrom}T00:00:00+07:00`) !== effectiveFrom) {
+    redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Ngày hiệu lực không hợp lệ"));
+  }
   const depositType = String(formData.get("deposit_type") ?? "percent");
   const depositValue = num(formData.get("deposit_value"));
   const fineHold = num(formData.get("fine_hold"));
@@ -125,7 +129,11 @@ export async function savePolicyAction(formData: FormData) {
       cancelHours < 0 || refundPct < 0 || refundPct > 100) {
     redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Giá trị chính sách không hợp lệ"));
   }
-  await supabase.from("policies").update({ active: false }).eq("active", true);
+  const { error: deactivateError } = await supabase
+    .from("policies")
+    .update({ active: false })
+    .eq("active", true);
+  if (deactivateError) redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent(deactivateError.message));
   const { error } = await supabase.from("policies").insert({
     name: String(formData.get("name") ?? "Chính sách mới"),
     deposit_type: depositType,

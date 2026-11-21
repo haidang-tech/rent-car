@@ -19,10 +19,17 @@ export default async function FinesPage({
 }) {
   const { luu, loi } = await searchParams;
   const supabase = await createClient();
-  const { data: fines } = await supabase
-    .from("fines")
-    .select("id, code, plate, occurred_at, status, amount, note")
-    .order("created_at", { ascending: false });
+  const [{ data: fines }, { data: bookings }] = await Promise.all([
+    supabase
+      .from("fines")
+      .select("id, code, plate, occurred_at, status, amount, note, booking_id, bookings(code)")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("bookings")
+      .select("id, code")
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
 
   const open = (fines ?? []).filter((f) => f.status !== "resolved");
 
@@ -85,6 +92,11 @@ export default async function FinesPage({
                     <td className="strong">
                       {fine.code}
                       <span className="sub">{fine.note}</span>
+                      {(fine.bookings as { code?: string } | null)?.code ? (
+                        <span className="sub">
+                          Đơn {(fine.bookings as { code?: string }).code}
+                        </span>
+                      ) : null}
                     </td>
                     <td>{fine.plate}</td>
                     <td>{dateTime(fine.occurred_at)}</td>
@@ -121,6 +133,15 @@ export default async function FinesPage({
             <label className="field">
               <span>Biển số xe</span>
               <input name="plate" placeholder="43A-123.45" required />
+            </label>
+            <label className="field">
+              <span>Đơn thuê liên quan</span>
+              <select name="booking_id" defaultValue="">
+                <option value="">Không gắn đơn</option>
+                {(bookings ?? []).map((booking) => (
+                  <option key={booking.id} value={booking.id}>{booking.code}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               <span>Thời điểm vi phạm</span>

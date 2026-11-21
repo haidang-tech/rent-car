@@ -11,7 +11,7 @@ const num = (v: FormDataEntryValue | null, fallback = 0) =>
 
 async function guard(roles: string[], fallback: string) {
   const profile = await getProfile();
-  if (!profile || !roles.includes(profile.role)) {
+  if (!profile || profile.status !== "active" || !roles.includes(profile.role)) {
     redirect("/dang-nhap?next=" + encodeURIComponent(fallback));
   }
   return profile;
@@ -87,12 +87,15 @@ export async function saveMaintenanceAction(formData: FormData) {
     const { error } = await supabase.rpc("complete_maintenance", { p_id: id, p_actual: actual });
     if (error) redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent(error.message));
   } else if (status === "in_progress") {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("maintenance_orders")
       .update({ status: "in_progress" })
       .eq("id", id)
-      .eq("status", "approved");
+      .eq("status", "approved")
+      .select("id")
+      .maybeSingle();
     if (error) redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent(error.message));
+    if (!data) redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent("Lệnh bảo dưỡng không còn ở trạng thái đã duyệt."));
   } else {
     redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent("Chuyển trạng thái bảo dưỡng không hợp lệ."));
   }
@@ -118,8 +121,12 @@ export async function saveIncidentAction(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "new");
+  const severity = String(formData.get("severity") ?? "medium");
   if (id && !["new", "processing", "resolved"].includes(status)) {
     redirect("/nhan-vien/su-co?loi=" + encodeURIComponent("Trạng thái sự cố không hợp lệ."));
+  }
+  if (!id && !["low", "medium", "high"].includes(severity)) {
+    redirect("/nhan-vien/su-co?loi=" + encodeURIComponent("Mức độ sự cố không hợp lệ."));
   }
   const { error } = id
     ? await supabase
@@ -131,7 +138,8 @@ export async function saveIncidentAction(formData: FormData) {
         booking_id: String(formData.get("booking_id") || "") || null,
         car_id: String(formData.get("car_id") || "") || null,
         type: String(formData.get("type") ?? "Sự cố kỹ thuật"),
-        severity: String(formData.get("severity") ?? "medium"),
+        severity,
+        replacement_car_id: String(formData.get("replacement_car_id") || "") || null,
         description: String(formData.get("description") ?? ""),
       });
   if (error) redirect("/nhan-vien/su-co?loi=" + encodeURIComponent(error.message));
@@ -219,6 +227,7 @@ export async function saveFineAction(formData: FormData) {
     : await supabase.from("fines").insert({
         code: `PN-${Date.now().toString().slice(-6)}`,
         plate: String(formData.get("plate") ?? ""),
+        booking_id: String(formData.get("booking_id") || "") || null,
         occurred_at: occurredIso,
         amount,
         note: String(formData.get("note") ?? ""),

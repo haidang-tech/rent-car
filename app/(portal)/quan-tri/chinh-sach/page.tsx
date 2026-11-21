@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { savePolicyAction } from "@/lib/actions/cars";
 import { currency, dateOnly } from "@/lib/format";
+import { vnDateKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +118,7 @@ export default async function PolicyPage({
             </div>
             <label className="field">
               <span>Hiệu lực từ</span>
-              <input name="effective_from" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              <input name="effective_from" type="date" defaultValue={vnDateKey(new Date())} />
             </label>
             <button className="button" type="submit">Lưu phiên bản</button>
           </div>

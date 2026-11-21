@@ -46,7 +46,7 @@ export default async function KycPage({
         paths.map(async (path) => {
           if (!path) return null;
           const result = await db.storage.from("kyc").createSignedUrl(path, 120);
-          if (result.error) throw new Error("Không tạo được liên kết xem ảnh eKYC. Kiểm tra chính sách Storage và quyền tài khoản.");
+          if (result.error) return null;
           return result.data?.signedUrl ?? null;
         }),
       );

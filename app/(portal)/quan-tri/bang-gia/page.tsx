@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { deletePricingAction, savePricingAction } from "@/lib/actions/cars";
@@ -8,15 +9,16 @@ export const dynamic = "force-dynamic";
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ luu?: string; loi?: string }>;
+  searchParams: Promise<{ luu?: string; loi?: string; edit?: string }>;
 }) {
-  const { luu, loi } = await searchParams;
+  const { luu, loi, edit } = await searchParams;
   const supabase = await createClient();
   const { data: rules } = await supabase
     .from("pricing_rules")
     .select("*")
     .order("kind")
     .order("amount");
+  const selected = (rules ?? []).find((rule) => rule.id === edit);
 
   return (
     <>
@@ -72,10 +74,15 @@ export default async function PricingPage({
                       </span>
                     </td>
                     <td>
-                      <form action={deletePricingAction}>
-                        <input type="hidden" name="id" value={rule.id} />
-                        <button className="chip" type="submit">Xóa</button>
-                      </form>
+                      <div className="row-actions">
+                        <Link className="chip" href={`/quan-tri/bang-gia?edit=${rule.id}`}>
+                          Sửa
+                        </Link>
+                        <form action={deletePricingAction}>
+                          <input type="hidden" name="id" value={rule.id} />
+                          <button className="chip" type="submit">Xóa</button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -86,20 +93,21 @@ export default async function PricingPage({
 
         <form className="panel" action={savePricingAction}>
           <div className="panel-head">
-            <h2>Thêm quy tắc giá</h2>
+            <h2>{selected ? "Sửa quy tắc giá" : "Thêm quy tắc giá"}</h2>
           </div>
           <div className="portal-form">
+            {selected ? <input type="hidden" name="id" value={selected.id} /> : null}
             <label className="field">
               <span>Tên quy tắc</span>
-              <input name="name" placeholder="Giá cuối tuần" required />
+              <input name="name" placeholder="Giá cuối tuần" defaultValue={selected?.name ?? ""} required />
             </label>
             <label className="field">
               <span>Phạm vi</span>
-              <input name="scope" defaultValue="Toàn đội xe" />
+              <input name="scope" defaultValue={selected?.scope ?? "Toàn đội xe"} />
             </label>
             <label className="field">
               <span>Loại</span>
-              <select name="kind" defaultValue="surcharge">
+              <select name="kind" defaultValue={selected?.kind ?? "surcharge"}>
                 <option value="base">Đơn giá thuê</option>
                 <option value="holiday">Giá ngày lễ</option>
                 <option value="surcharge">Phụ thu</option>
@@ -107,11 +115,11 @@ export default async function PricingPage({
             </label>
             <label className="field">
               <span>Số tiền (₫)</span>
-              <input name="amount" type="number" min={0} step={10000} required />
+              <input name="amount" type="number" min={0} step={10000} defaultValue={selected?.amount ?? ""} required />
             </label>
             <label className="field">
               <span>Đơn vị</span>
-              <select name="unit" defaultValue="ngày">
+              <select name="unit" defaultValue={selected?.unit ?? "ngày"}>
                 <option>ngày</option>
                 <option>lượt</option>
                 <option>giờ</option>
@@ -120,15 +128,15 @@ export default async function PricingPage({
             <div className="form-grid">
               <label className="field">
                 <span>Từ ngày</span>
-                <input name="start_date" type="date" />
+                <input name="start_date" type="date" defaultValue={selected?.start_date ?? ""} />
               </label>
               <label className="field">
                 <span>Đến ngày</span>
-                <input name="end_date" type="date" />
+                <input name="end_date" type="date" defaultValue={selected?.end_date ?? ""} />
               </label>
             </div>
             <label className="field" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input name="active" type="checkbox" defaultChecked style={{ width: "auto" }} />
+              <input name="active" type="checkbox" defaultChecked={selected ? selected.active : true} style={{ width: "auto" }} />
               <span style={{ margin: 0 }}>Áp dụng ngay</span>
             </label>
             <button className="button" type="submit">Lưu quy tắc</button>

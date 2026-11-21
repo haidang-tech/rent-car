@@ -80,7 +80,6 @@ export default async function ContractsPage({
                             <button className="chip" type="submit">Ký duyệt</button>
                           </form>
                         ) : null}
-                        <span className="chip">Xuất PDF</span>
                       </div>
                     </td>
                   </tr>

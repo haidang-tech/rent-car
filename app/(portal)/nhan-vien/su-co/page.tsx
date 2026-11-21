@@ -137,6 +137,15 @@ export default async function IncidentsPage({
               </select>
             </label>
             <label className="field">
+              <span>Xe thay thế</span>
+              <select name="replacement_car_id" defaultValue="">
+                <option value="">Không thay thế</option>
+                {(cars ?? []).map((car) => (
+                  <option key={car.id} value={car.id}>{car.model} · {car.plate}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
               <span>Phân loại</span>
               <select name="type" defaultValue="Sự cố kỹ thuật">
                 <option>Sự cố kỹ thuật</option>
