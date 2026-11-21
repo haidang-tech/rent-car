@@ -1,19 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { currency, dateOnly } from "@/lib/format";
+import { vnMonthStartIso } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReconciliationPage() {
   const supabase = await createClient();
   const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthStartIso = vnMonthStartIso(today);
+  const monthStart = new Date(monthStartIso);
 
   const { data: payments } = await supabase
     .from("payments")
     .select("type, method, amount, status, paid_at")
     .eq("status", "paid")
-    .gte("paid_at", monthStart.toISOString());
+    .gte("paid_at", monthStartIso);
 
   const rows = payments ?? [];
   const cash = rows
@@ -50,9 +52,9 @@ export default async function ReconciliationPage() {
           <small>Sau hoàn cọc &amp; chi phí</small>
         </div>
         <div className="stat-card">
-          <span>Chênh lệch</span>
-          <strong>{currency(0)}</strong>
-          <small>Đã khớp sổ</small>
+          <span>Đối chiếu thực tế</span>
+          <strong>Chưa nhập</strong>
+          <small>Nhập sao kê / kiểm đếm để đối soát</small>
         </div>
       </div>
 
@@ -91,7 +93,7 @@ export default async function ReconciliationPage() {
                     <td>{currency(thu)}</td>
                     <td>{currency(chi)}</td>
                     <td>{currency(thu - chi)}</td>
-                    <td><span className="badge success">Đã khớp</span></td>
+                    <td><span className="badge warn">Chờ đối chiếu thực tế</span></td>
                   </tr>
                 );
               })}

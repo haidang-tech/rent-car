@@ -2,14 +2,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { BOOKING_STATUS, CAR_STATUS, currency, dateTime } from "@/lib/format";
+import { vnMonthStartIso } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const monthStart = vnMonthStartIso();
 
   const [{ data: cars }, { data: bookings }, { data: payments }] = await Promise.all([
     supabase.from("cars").select("id, code, model, plate, status, price_per_day, image_url"),
@@ -21,7 +20,7 @@ export default async function AdminDashboard() {
       .from("payments")
       .select("amount, type, status, paid_at")
       .eq("status", "paid")
-      .gte("paid_at", monthStart.toISOString()),
+      .gte("paid_at", monthStart),
   ]);
 
   const allBookings = bookings ?? [];
@@ -30,7 +29,7 @@ export default async function AdminDashboard() {
   );
   const pending = allBookings.filter((b) => b.status === "pending");
   const revenue = (payments ?? [])
-    .filter((p) => p.type !== "refund" && p.type !== "expense")
+    .filter((p) => ["rental", "penalty"].includes(p.type))
     .reduce((sum, p) => sum + Number(p.amount), 0);
   const availableCars = (cars ?? []).filter((c) => c.status === "available");
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { updateBookingStatusAction } from "@/lib/actions/bookings";
+import { adminCancelBookingAction } from "@/lib/actions/ops";
 import { BOOKING_STATUS, currency, dateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -129,6 +130,13 @@ export default async function AdminBookingsPage({
                         <Link className="chip" href={`/nhan-vien/tra-xe?booking=${b.id}`}>
                           Nhận trả
                         </Link>
+                      ) : null}
+                      {["pending", "confirmed", "signed"].includes(b.status) ? (
+                        <form action={adminCancelBookingAction} className="row-actions">
+                          <input type="hidden" name="id" value={b.id} />
+                          <input name="reason" required minLength={3} placeholder="Lý do hủy" />
+                          <button className="chip" type="submit">Hủy đơn</button>
+                        </form>
                       ) : null}
                     </div>
                   </td>

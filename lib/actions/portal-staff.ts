@@ -5,8 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 async function decide(form: FormData, kyc: boolean) {
   const profile = await getProfile();
-  if (!profile || !['admin','staff'].includes(profile.role)) redirect('/dang-nhap');
-  const back = kyc ? '/nhan-vien/ekyc' : '/nhan-vien/yeu-cau';
+  if (!profile || profile.status !== 'active' || !['admin','staff'].includes(profile.role)) {
+    redirect('/dang-nhap?next=' + encodeURIComponent(kyc ? '/nhan-vien/ekyc' : '/nhan-vien/yeu-cau'));
+  }
+  const requestedBack = String(form.get('back') || '');
+  const allowedBack = kyc ? '/nhan-vien/ekyc' : '/nhan-vien/yeu-cau';
+  const back = requestedBack.startsWith('/') && !requestedBack.startsWith('//') ? requestedBack : allowedBack;
   const db = await createClient();
   const approved = form.get('decision')==='approve';
   const { error } = await db.rpc(kyc ? 'verify_kyc' : 'decide_booking_request', {

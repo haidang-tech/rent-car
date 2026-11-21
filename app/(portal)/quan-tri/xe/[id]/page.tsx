@@ -16,7 +16,7 @@ export default async function EditCarPage({
   const { data: car } = await supabase.from("cars").select("*").eq("id", id).maybeSingle();
   if (!car) notFound();
 
-  const [{ data: bookings }, { data: checks }] = await Promise.all([
+  const [{ data: bookings }, { data: location }] = await Promise.all([
     supabase
       .from("bookings")
       .select("code, pickup_at, status")
@@ -24,11 +24,21 @@ export default async function EditCarPage({
       .in("status", ["pending", "confirmed", "signed", "handed_over"])
       .order("pickup_at")
       .limit(4),
-    supabase
-      .from("vehicle_checks")
-      .select("kind, odometer, created_at")
-      .limit(1),
+    car.location_id
+      ? supabase.from("locations").select("name").eq("id", car.location_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const { data: checkRows } = await supabase
+    .from("vehicle_checks")
+    .select("kind, odometer, created_at, booking_id")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const { data: carBookings } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("car_id", id);
+  const carBookingIds = new Set((carBookings ?? []).map((b) => b.id));
+  const checks = (checkRows ?? []).filter((check) => carBookingIds.has(check.booking_id)).slice(0, 1);
 
   return (
     <>
@@ -72,7 +82,7 @@ export default async function EditCarPage({
             </div>
             <div>
               <span>Điểm nhận xe</span>
-              <span>Đà Nẵng</span>
+              <span>{location?.name ?? "Chưa gán điểm"}</span>
             </div>
             <div>
               <span>Đơn sắp tới</span>

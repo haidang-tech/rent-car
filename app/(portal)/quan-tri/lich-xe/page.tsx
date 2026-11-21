@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { currency, dateTime } from "@/lib/format";
+import { vnDateKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function SchedulePage() {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const dayKey = (d: Date) => vnDateKey(d);
   const eventsByDay = new Map<string, string[]>();
   (bookings ?? []).forEach((b) => {
     const begin = new Date(b.pickup_at);

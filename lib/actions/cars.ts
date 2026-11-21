@@ -42,6 +42,18 @@ export async function saveCarAction(formData: FormData) {
   if (!payload.code || !payload.plate || !payload.model) {
     redirect("/quan-tri/xe?loi=" + encodeURIComponent("Nhập mã xe, biển số và mẫu xe"));
   }
+  if (!/^\/images\/.+/.test(payload.image_url)) {
+    redirect("/quan-tri/xe?loi=" + encodeURIComponent("Ảnh xe phải là đường dẫn /images/..."));
+  }
+  if (!Number.isFinite(payload.seats) || payload.seats < 2 || payload.seats > 30 ||
+      !Number.isFinite(payload.year) || payload.year < 1980 || payload.year > new Date().getFullYear() + 2 ||
+      !Number.isFinite(payload.price_per_day) || payload.price_per_day < 0 ||
+      !Number.isFinite(payload.deposit) || payload.deposit < 0) {
+    redirect("/quan-tri/xe?loi=" + encodeURIComponent("Thông tin xe hoặc giá trị số không hợp lệ"));
+  }
+  if (!["available", "rented", "maintenance", "unavailable"].includes(payload.status)) {
+    redirect("/quan-tri/xe?loi=" + encodeURIComponent("Trạng thái xe không hợp lệ"));
+  }
 
   const { error } = id
     ? await supabase.from("cars").update(payload).eq("id", id)
@@ -77,7 +89,18 @@ export async function savePricingAction(formData: FormData) {
     amount: num(formData.get("amount")),
     unit: String(formData.get("unit") ?? "ngày"),
     active: formData.get("active") === "on",
+    start_date: String(formData.get("start_date") ?? "") || null,
+    end_date: String(formData.get("end_date") ?? "") || null,
   };
+  if (!payload.name.trim() || !Number.isFinite(payload.amount) || payload.amount < 0) {
+    redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Tên hoặc số tiền quy tắc giá không hợp lệ"));
+  }
+  if (!["base", "holiday", "surcharge"].includes(payload.kind)) {
+    redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Loại quy tắc giá không hợp lệ"));
+  }
+  if (payload.start_date && payload.end_date && payload.end_date < payload.start_date) {
+    redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Ngày kết thúc phải sau ngày bắt đầu"));
+  }
   const { error } = id
     ? await supabase.from("pricing_rules").update(payload).eq("id", id)
     : await supabase.from("pricing_rules").insert(payload);
@@ -89,18 +112,43 @@ export async function savePricingAction(formData: FormData) {
 export async function savePolicyAction(formData: FormData) {
   await requireAdmin();
   const supabase = await createClient();
+  const effectiveFrom = String(formData.get("effective_from") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
+    redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Ngày hiệu lực không hợp lệ"));
+  }
+  const depositType = String(formData.get("deposit_type") ?? "percent");
+  const depositValue = num(formData.get("deposit_value"));
+  const fineHold = num(formData.get("fine_hold"));
+  const cancelHours = num(formData.get("cancel_hours"), 24);
+  const refundPct = num(formData.get("refund_pct"), 100);
+  if (!["fixed", "percent"].includes(depositType) || depositValue < 0 || fineHold < 0 ||
+      cancelHours < 0 || refundPct < 0 || refundPct > 100) {
+    redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Giá trị chính sách không hợp lệ"));
+  }
+  await supabase.from("policies").update({ active: false }).eq("active", true);
   const { error } = await supabase.from("policies").insert({
     name: String(formData.get("name") ?? "Chính sách mới"),
-    deposit_type: String(formData.get("deposit_type") ?? "percent"),
-    deposit_value: num(formData.get("deposit_value")),
-    fine_hold: num(formData.get("fine_hold")),
-    cancel_hours: num(formData.get("cancel_hours"), 24),
-    refund_pct: num(formData.get("refund_pct"), 100),
-    effective_from: String(formData.get("effective_from") ?? new Date().toISOString().slice(0, 10)),
+    deposit_type: depositType,
+    deposit_value: depositValue,
+    fine_hold: fineHold,
+    cancel_hours: cancelHours,
+    refund_pct: refundPct,
+    effective_from: effectiveFrom,
     active: true,
   });
   if (error) redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent(error.message));
   revalidatePath("/quan-tri/chinh-sach");
   redirect("/quan-tri/chinh-sach?luu=1");
+}
+
+export async function deletePricingAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Thiếu quy tắc giá."));
+  const { error } = await supabase.from("pricing_rules").delete().eq("id", id);
+  if (error) redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent(error.message));
+  revalidatePath("/quan-tri/bang-gia");
+  redirect("/quan-tri/bang-gia?xoa=1");
 }
 

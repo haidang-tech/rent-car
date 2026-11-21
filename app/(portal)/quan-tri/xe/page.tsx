@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
 import { CAR_STATUS, currency } from "@/lib/format";
+import { deleteCarAction } from "@/lib/actions/cars";
 
 export const dynamic = "force-dynamic";
 
@@ -102,9 +103,15 @@ export default async function AdminCarsPage({
                     </span>
                   </td>
                   <td>
-                    <Link className="chip" href={`/quan-tri/xe/${car.id}`}>
-                      Sửa
-                    </Link>
+                    <div className="row-actions">
+                      <Link className="chip" href={`/quan-tri/xe/${car.id}`}>
+                        Sửa
+                      </Link>
+                      <form action={deleteCarAction}>
+                        <input type="hidden" name="id" value={car.id} />
+                        <button className="chip" type="submit">Xóa</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

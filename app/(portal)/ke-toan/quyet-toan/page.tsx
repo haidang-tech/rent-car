@@ -19,6 +19,20 @@ export default async function SettlementPage({
     .order("return_at", { ascending: false });
 
   const pending = (bookings ?? []).filter((b) => b.status === "returned");
+  const { data: deposits } = await supabase
+    .from("payments")
+    .select("booking_id, amount")
+    .eq("type", "deposit")
+    .eq("status", "paid");
+  const depositByBooking = new Map<string, number>();
+  (deposits ?? []).forEach((payment) => {
+    if (payment.booking_id) {
+      depositByBooking.set(
+        payment.booking_id,
+        (depositByBooking.get(payment.booking_id) ?? 0) + Number(payment.amount),
+      );
+    }
+  });
 
   return (
     <>
@@ -97,7 +111,7 @@ export default async function SettlementPage({
             </label>
             <label className="field">
               <span>Số tiền hoàn khách (₫)</span>
-              <input name="refund" type="number" min={0} step={50000} defaultValue={5000000} />
+              <input name="refund" type="number" min={0} step={50000} defaultValue={pending[0] ? Number(depositByBooking.get(pending[0].id) ?? pending[0].deposit) : 0} />
             </label>
             <label className="field">
               <span>Bảo lưu phạt nguội (₫)</span>

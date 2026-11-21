@@ -83,15 +83,7 @@ export function PortalTopbar({ label }: { label: string }) {
   return (
     <div className="portal-topbar">
       <span className="breadcrumb">Lái Đi / {label}</span>
-      <div className="portal-tools">
-        <form className="portal-search" action="/" role="search">
-          <input name="q" type="search" aria-label="Tìm kiếm" placeholder="Tìm kiếm mã đơn, khách hàng..." />
-        </form>
-        <span className="who">
-          <span className="status-dot" aria-hidden="true" />
-          Đang hoạt động
-        </span>
-      </div>
+      <div className="portal-tools" />
     </div>
   );
 }

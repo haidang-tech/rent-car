@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
-import { savePricingAction } from "@/lib/actions/cars";
+import { deletePricingAction, savePricingAction } from "@/lib/actions/cars";
 import { currency, dateOnly } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +46,7 @@ export default async function PricingPage({
                   <th>Đơn giá</th>
                   <th>Hiệu lực</th>
                   <th>Trạng thái</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -69,6 +70,12 @@ export default async function PricingPage({
                       <span className={`badge ${rule.active ? "success" : "muted"}`}>
                         {rule.active ? "Đang áp dụng" : "Tạm dừng"}
                       </span>
+                    </td>
+                    <td>
+                      <form action={deletePricingAction}>
+                        <input type="hidden" name="id" value={rule.id} />
+                        <button className="chip" type="submit">Xóa</button>
+                      </form>
                     </td>
                   </tr>
                 ))}
@@ -110,6 +117,16 @@ export default async function PricingPage({
                 <option>giờ</option>
               </select>
             </label>
+            <div className="form-grid">
+              <label className="field">
+                <span>Từ ngày</span>
+                <input name="start_date" type="date" />
+              </label>
+              <label className="field">
+                <span>Đến ngày</span>
+                <input name="end_date" type="date" />
+              </label>
+            </div>
             <label className="field" style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input name="active" type="checkbox" defaultChecked style={{ width: "auto" }} />
               <span style={{ margin: 0 }}>Áp dụng ngay</span>

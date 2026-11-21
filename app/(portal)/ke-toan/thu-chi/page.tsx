@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
-import { savePaymentAction } from "@/lib/actions/ops";
+import { cancelPaymentAction, savePaymentAction } from "@/lib/actions/ops";
 import { currency, dateTime, TX_STATUS } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -118,10 +118,16 @@ export default async function PaymentsPage({
                     </td>
                     <td>
                       {payment.status === "pending" ? (
-                        <form action={savePaymentAction}>
-                          <input type="hidden" name="id" value={payment.id} />
-                          <button className="chip" type="submit">Xác nhận</button>
-                        </form>
+                        <div className="row-actions">
+                          <form action={savePaymentAction}>
+                            <input type="hidden" name="id" value={payment.id} />
+                            <button className="chip" type="submit">Xác nhận</button>
+                          </form>
+                          <form action={cancelPaymentAction}>
+                            <input type="hidden" name="id" value={payment.id} />
+                            <button className="chip" type="submit">Hủy</button>
+                          </form>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
