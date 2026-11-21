@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PortalTopbar } from "@/components/portal-shell";
-import { currency, dateTime } from "@/lib/format";
+import { dateTime } from "@/lib/format";
 import { vnDateKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";

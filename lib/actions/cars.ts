@@ -96,7 +96,8 @@ export async function savePricingAction(formData: FormData) {
   if (!payload.name.trim() || !Number.isFinite(payload.amount) || payload.amount < 0) {
     redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Tên hoặc số tiền quy tắc giá không hợp lệ"));
   }
-  if (!["base", "holiday", "surcharge"].includes(payload.kind)) {
+  if (!["base", "holiday", "surcharge"].includes(payload.kind) ||
+      !["ngày", "lượt", "giờ"].includes(payload.unit)) {
     redirect("/quan-tri/bang-gia?loi=" + encodeURIComponent("Loại quy tắc giá không hợp lệ"));
   }
   if (payload.start_date && payload.end_date && payload.end_date < payload.start_date) {
@@ -125,8 +126,10 @@ export async function savePolicyAction(formData: FormData) {
   const fineHold = num(formData.get("fine_hold"));
   const cancelHours = num(formData.get("cancel_hours"), 24);
   const refundPct = num(formData.get("refund_pct"), 100);
-  if (!["fixed", "percent"].includes(depositType) || depositValue < 0 || fineHold < 0 ||
-      cancelHours < 0 || refundPct < 0 || refundPct > 100) {
+  if (!["fixed", "percent"].includes(depositType) ||
+      ![depositValue, fineHold, cancelHours, refundPct].every(Number.isFinite) ||
+      depositValue < 0 || (depositType === "percent" && depositValue > 100) ||
+      fineHold < 0 || cancelHours < 0 || refundPct < 0 || refundPct > 100) {
     redirect("/quan-tri/chinh-sach?loi=" + encodeURIComponent("Giá trị chính sách không hợp lệ"));
   }
   const { error: deactivateError } = await supabase

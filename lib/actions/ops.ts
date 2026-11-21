@@ -17,6 +17,11 @@ async function guard(roles: string[], fallback: string) {
   return profile;
 }
 
+function safeBack(value: FormDataEntryValue | null, fallback: string) {
+  const back = String(value ?? "");
+  return back.startsWith("/") && !back.startsWith("//") ? back : fallback;
+}
+
 export async function recordHandoverAction(formData: FormData) {
   const profile = await guard(["admin", "staff"], "/nhan-vien");
   const supabase = await createClient();
@@ -25,9 +30,10 @@ export async function recordHandoverAction(formData: FormData) {
   const battery = num(formData.get("battery"), 100);
   const accessories = String(formData.get("accessories") ?? "");
   const damageNote = String(formData.get("damage_note") ?? "");
-  const back = String(formData.get("back") ?? "/nhan-vien");
+  const back = safeBack(formData.get("back"), "/nhan-vien");
 
-  if (!bookingId || odometer < 0 || battery < 0 || battery > 100) {
+  if (!bookingId || !Number.isFinite(odometer) || !Number.isInteger(odometer) || odometer < 0 ||
+      !Number.isFinite(battery) || !Number.isInteger(battery) || battery < 0 || battery > 100) {
     redirect(back + "?loi=" + encodeURIComponent("Thông tin bàn giao không hợp lệ"));
   }
   const { error } = await supabase.rpc("record_handover", {
@@ -53,9 +59,11 @@ export async function recordReturnAction(formData: FormData) {
   const battery = num(formData.get("battery"), 100);
   const fees = num(formData.get("fees"));
   const damageNote = String(formData.get("damage_note") ?? "");
-  const back = String(formData.get("back") ?? "/nhan-vien");
+  const back = safeBack(formData.get("back"), "/nhan-vien");
 
-  if (!bookingId || odometer < 0 || battery < 0 || battery > 100 || fees < 0) {
+  if (!bookingId || !Number.isFinite(odometer) || !Number.isInteger(odometer) || odometer < 0 ||
+      !Number.isFinite(battery) || !Number.isInteger(battery) || battery < 0 || battery > 100 ||
+      !Number.isFinite(fees) || fees < 0) {
     redirect(back + "?loi=" + encodeURIComponent("Thông tin trả xe không hợp lệ"));
   }
   const { error } = await supabase.rpc("record_return", {
@@ -81,7 +89,7 @@ export async function saveMaintenanceAction(formData: FormData) {
   const actual = formData.get("actual") ? num(formData.get("actual")) : null;
   if (id) {
   if (status === "completed") {
-    if (actual === null || actual < 0) {
+    if (actual === null || !Number.isFinite(actual) || actual < 0) {
       redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent("Chi phí thực tế không hợp lệ."));
     }
     const { error } = await supabase.rpc("complete_maintenance", { p_id: id, p_actual: actual });
@@ -101,7 +109,7 @@ export async function saveMaintenanceAction(formData: FormData) {
   }
   } else {
   const estimate = num(formData.get("estimate"));
-  if (estimate < 0) redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent("Dự toán không hợp lệ."));
+  if (!Number.isFinite(estimate) || estimate < 0) redirect("/nhan-vien/bao-duong?loi=" + encodeURIComponent("Dự toán không hợp lệ."));
   const { error } = await supabase.rpc("create_maintenance_order", {
     p_car_id: String(formData.get("car_id") ?? ""),
     p_category: String(formData.get("category") ?? "Bảo dưỡng định kỳ"),
@@ -180,17 +188,21 @@ export async function savePaymentAction(formData: FormData) {
   } else {
     const type = String(formData.get("type") ?? "income");
     const amount = num(formData.get("amount"));
+    const method = String(formData.get("method") ?? "transfer");
     if (!Number.isFinite(amount) || amount <= 0) {
       redirect("/ke-toan/thu-chi?loi=" + encodeURIComponent("Số tiền phải lớn hơn 0."));
     }
     if (!["income", "expense", "refund"].includes(type)) {
       redirect("/ke-toan/thu-chi?loi=" + encodeURIComponent("Loại phiếu không hợp lệ."));
     }
+    if (!["cash", "transfer", "card"].includes(method)) {
+      redirect("/ke-toan/thu-chi?loi=" + encodeURIComponent("Hình thức thanh toán không hợp lệ."));
+    }
     const { error } = await supabase.from("payments").insert({
       code: `${type === "expense" ? "PC" : "PT"}-${Date.now().toString().slice(-8)}`,
       booking_id: String(formData.get("booking_id") || "") || null,
       type: type === "income" ? "rental" : type,
-      method: String(formData.get("method") ?? "transfer"),
+      method,
       amount,
       status: "paid",
       paid_at: new Date().toISOString(),
@@ -219,6 +231,10 @@ export async function saveFineAction(formData: FormData) {
   if (rawOccurred && !occurredIso) {
     redirect("/ke-toan/phat-nguoi?loi=" + encodeURIComponent("Thời gian vi phạm không hợp lệ."));
   }
+  const plate = String(formData.get("plate") ?? "").trim();
+  if (!id && (plate.length < 5 || plate.length > 30)) {
+    redirect("/ke-toan/phat-nguoi?loi=" + encodeURIComponent("Biển số xe không hợp lệ."));
+  }
   const { error } = id
     ? await supabase
         .from("fines")
@@ -226,7 +242,7 @@ export async function saveFineAction(formData: FormData) {
         .eq("id", id)
     : await supabase.from("fines").insert({
         code: `PN-${Date.now().toString().slice(-6)}`,
-        plate: String(formData.get("plate") ?? ""),
+        plate,
         booking_id: String(formData.get("booking_id") || "") || null,
         occurred_at: occurredIso,
         amount,
@@ -244,9 +260,10 @@ export async function settleDepositAction(formData: FormData) {
   const bookingId = String(formData.get("booking_id") ?? "");
   const refund = num(formData.get("refund"));
   const deduction = num(formData.get("deduction"));
-  const back = String(formData.get("back") ?? "/ke-toan/quyet-toan");
+  const back = safeBack(formData.get("back"), "/ke-toan/quyet-toan");
 
-  if (!bookingId || refund < 0 || deduction < 0) {
+  if (!bookingId || !Number.isFinite(refund) || refund < 0 ||
+      !Number.isFinite(deduction) || deduction < 0) {
     redirect(back + "?loi=" + encodeURIComponent("Thông tin quyết toán không hợp lệ"));
   }
   const { error } = await supabase.rpc("settle_deposit", {
