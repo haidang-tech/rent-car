@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { bookingErrorMessage, validateBookingInput } from "@/lib/booking-validation";
 
 export type BookingState = {
   error?: string;
@@ -15,7 +16,6 @@ export async function createBookingAction(
   _prev: BookingState,
   formData: FormData,
 ): Promise<BookingState> {
-  const supabase = await createClient();
   const carId = String(formData.get("car_id") ?? "");
   const name = String(formData.get("customer_name") ?? "").trim();
   const phone = String(formData.get("customer_phone") ?? "").trim();
@@ -25,30 +25,39 @@ export async function createBookingAction(
   const pickupLocation = String(formData.get("pickup_location") ?? "");
   const note = String(formData.get("note") ?? "").trim();
 
-  if (!carId || !pickupAt || !returnAt) {
-    return { error: "Vui lòng chọn xe và thời gian thuê." };
+  const validated = validateBookingInput({ carId, name, phone, email, pickup: pickupAt, ret: returnAt, location: pickupLocation, note });
+  if ("error" in validated) return validated;
+
+  try {
+    const supabase = await createClient();
+    const { data: location, error: locationError } = await supabase.from("locations")
+      .select("id").eq("name", pickupLocation).eq("active", true).limit(1).maybeSingle();
+    if (locationError) return { error: "Chưa thể kiểm tra điểm nhận xe. Vui lòng thử lại." };
+    if (!location) return { error: "Điểm nhận xe không còn hoạt động. Vui lòng chọn lại." };
+    const { data, error } = await supabase.rpc("create_booking", {
+      p_car_id: carId,
+      p_customer_name: name,
+      p_customer_phone: phone,
+      p_customer_email: email || null,
+      p_pickup_at: validated.pickupAt,
+      p_return_at: validated.returnAt,
+      p_pickup_location: pickupLocation,
+      p_note: note || null,
+    });
+
+    if (error) return { error: bookingErrorMessage(error) };
+    if (!data?.code) return { error: "Chưa nhận được mã đơn. Vui lòng liên hệ hỗ trợ trước khi đặt lại." };
+
+    revalidatePath("/tai-khoan");
+    revalidatePath("/xe");
+    revalidatePath("/quan-tri/don");
+    return {
+      success: `Đã gửi yêu cầu thuê xe. Mã đơn ${data.code}.`,
+      code: data.code as string,
+    };
+  } catch {
+    return { error: "Kết nối bị gián đoạn. Vui lòng kiểm tra đơn của bạn trước khi thử lại." };
   }
-
-  const { data, error } = await supabase.rpc("create_booking", {
-    p_car_id: carId,
-    p_customer_name: name,
-    p_customer_phone: phone,
-    p_customer_email: email || null,
-    p_pickup_at: new Date(pickupAt).toISOString(),
-    p_return_at: new Date(returnAt).toISOString(),
-    p_pickup_location: pickupLocation,
-    p_note: note || null,
-  });
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/tai-khoan");
-  revalidatePath("/xe");
-  revalidatePath("/quan-tri/don");
-  return {
-    success: `Đã gửi yêu cầu thuê xe. Mã đơn ${data.code}.`,
-    code: data.code as string,
-  };
 }
 
 export async function updateBookingStatusAction(formData: FormData) {

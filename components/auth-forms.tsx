@@ -30,7 +30,7 @@ export function SignInForm({ next }: { next?: string }) {
       <p className="auth-switch">
         Chưa có tài khoản? <Link href="/dang-ky">Đăng ký ngay</Link>
       </p>
-      <div className="demo-hint">
+      {process.env.NODE_ENV !== "production" ? <div className="demo-hint">
         <strong>Tài khoản demo</strong>
         <br />
         Khách: khach@laidi.vn · Nhân viên: nhanvien@laidi.vn
@@ -38,7 +38,7 @@ export function SignInForm({ next }: { next?: string }) {
         Kế toán: ketoan@laidi.vn · Admin: admin@laidi.vn
         <br />
         Mật khẩu chung: <code>Laidi@2026</code>
-      </div>
+      </div> : null}
     </>
   );
 }

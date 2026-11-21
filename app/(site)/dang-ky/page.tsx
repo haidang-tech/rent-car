@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
 import { SignUpForm } from "@/components/auth-forms";
-import { getSession } from "@/lib/auth";
+import { getSession, getProfile, ROLE_HOME } from "@/lib/auth";
 
 export const metadata = { title: "Đăng ký" };
 
 export default async function RegisterPage() {
   const session = await getSession();
-  if (session) redirect("/tai-khoan");
+  if (session) {
+    const profile = await getProfile();
+    redirect(profile ? ROLE_HOME[profile.role] : "/auth/reset-session");
+  }
 
   return (
     <div className="auth-wrap">

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ROLE_HOME, type Role } from "@/lib/auth";
+import { safeAuthNext } from "@/lib/auth-redirect";
+import { validPhone } from "@/lib/booking-validation";
 
 export type AuthState = { error?: string; success?: string } | null;
 
@@ -33,14 +35,22 @@ export async function signInAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { error: "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại." };
+  }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
-    .eq("id", user!.id)
+    .select("role, status")
+    .eq("id", user.id)
     .maybeSingle();
 
-  const role = (profile?.role as Role | undefined) ?? "customer";
-  redirect(next || ROLE_HOME[role]);
+  if (!profile || profile.status !== "active" || !Object.hasOwn(ROLE_HOME, profile.role)) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { error: profile?.status === "locked" ? "Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ." : "Không tìm thấy hồ sơ hoạt động. Vui lòng liên hệ hỗ trợ." };
+  }
+  const role = profile.role as Role;
+  redirect(safeAuthNext(next, ROLE_HOME[role]));
 }
 
 export async function signUpAction(
@@ -53,6 +63,7 @@ export async function signUpAction(
   const password = String(formData.get("password") ?? "");
 
   if (fullName.length < 2) return { error: "Vui lòng nhập họ tên." };
+  if (!validPhone(phone)) return { error: "Số điện thoại cần có 10 chữ số bắt đầu bằng 0 hoặc dùng mã +84." };
   if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Email không hợp lệ." };
   if (password.length < 6) return { error: "Mật khẩu cần ít nhất 6 ký tự." };
 

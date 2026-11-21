@@ -1,6 +1,7 @@
 // Seed Lái Đi demo data.
 // Usage: node --env-file=.env.local scripts/seed.mjs
 import { createClient } from "@supabase/supabase-js";
+import { parseVnDateTimeLocal, vnDateKey } from "../lib/time.ts";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const secret = process.env.SUPABASE_SECRET_KEY;
@@ -13,10 +14,9 @@ const db = createClient(url, secret, { auth: { persistSession: false } });
 
 const ID = (n) => `11111111-1111-4111-8111-${String(n).padStart(12, "0")}`;
 const at = (days, hour = 9) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
+  const d = new Date(`${vnDateKey(new Date())}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return parseVnDateTimeLocal(`${d.toISOString().slice(0, 10)}T${String(hour).padStart(2, "0")}:00`);
 };
 
 const locations = [
@@ -161,7 +161,9 @@ const accounts = [
 
 async function upsert(table, rows, onConflict = "id") {
   if (!rows.length) return;
-  const { error } = await db.from(table).upsert(rows, { onConflict });
+  // Existing demo rows may have progressed through guarded workflows.
+  // Re-running seed only fills missing rows; it never rewinds live state.
+  const { error } = await db.from(table).upsert(rows, { onConflict, ignoreDuplicates: true });
   if (error) throw new Error(`${table}: ${error.message}`);
   console.log(`✓ ${table}: ${rows.length} rows`);
 }
@@ -173,6 +175,7 @@ async function seedAccounts() {
 
   for (const account of accounts) {
     let user = byEmail.get(account.email);
+    const isNew = !user;
     if (!user) {
       const { data: created, error: createError } = await db.auth.admin.createUser({
         email: account.email,
@@ -193,7 +196,9 @@ async function seedAccounts() {
         branch: account.branch,
         status: "active",
       },
-      { onConflict: "id" },
+      // The auth trigger creates a customer profile for a new user; initialize
+      // its demo role once, but never unlock or reassign an existing account.
+      { onConflict: "id", ignoreDuplicates: !isNew },
     );
     if (profileError) throw profileError;
   }
@@ -205,7 +210,8 @@ async function seedAccounts() {
   const { error: linkError } = await db
     .from("bookings")
     .update({ user_id: customerId })
-    .in("code", ["LD-2603-1042", "LD-2603-1047"]);
+    .in("code", ["LD-2603-1042", "LD-2603-1047"])
+    .is("user_id", null);
   if (linkError) throw new Error(`bookings: ${linkError.message}`);
   console.log("✓ linked demo bookings to customer account");
   return customerId;

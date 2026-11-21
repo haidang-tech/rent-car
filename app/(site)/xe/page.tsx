@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { CarCard, type CarCardData } from "@/components/car-card";
+import { validateDates } from "@/lib/validation";
+import { parseVnDateTimeLocal, vnDateKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -22,43 +24,52 @@ export default async function CarsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+  const { data: locations, error: locationError } = await supabase.from("locations").select("id,name").eq("active", true).order("name");
+  const selectedLocation = params.location ? locations?.find(location => location.id === params.location || location.name === params.location) : null;
+  const hasWindow = Boolean(params.pickup || params.return);
+  let problem = hasWindow ? validateDates(params.pickup ?? "", params.return ?? "", vnDateKey(new Date())) : null;
+  if (locationError) problem = "Không tải được địa điểm nhận xe. Vui lòng thử lại.";
+  else if (params.location && !selectedLocation) problem = "Địa điểm nhận xe không hợp lệ hoặc đã ngừng hoạt động.";
 
   let query = supabase
     .from("cars")
     .select(
-      "id, code, plate, brand, model, category, seats, transmission, fuel, price_per_day, status, image_url, rating",
+      "id, code, plate, brand, model, category, seats, transmission, fuel, price_per_day, deposit, status, image_url, rating",
     )
     .in("status", ["available", "rented"]);
 
-  if (params.seats) query = query.gte("seats", Number(params.seats));
+  if (params.seats && ["5", "7"].includes(params.seats)) query = query.gte("seats", Number(params.seats));
+  if (selectedLocation) query = query.eq("location_id", selectedLocation.id);
   if (params.fuel) query = query.eq("fuel", params.fuel);
   query =
     params.sort === "price-desc"
       ? query.order("price_per_day", { ascending: false })
       : query.order("price_per_day");
 
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) problem = "Không tải được danh sách xe. Vui lòng thử lại.";
   let cars = (data ?? []) as CarCardData[];
 
-  const hasWindow = Boolean(params.pickup && params.return);
-  if (hasWindow) {
-    const pickup = new Date(`${params.pickup}T00:00:00+07:00`).toISOString();
-    const ret = new Date(`${params.return}T23:59:00+07:00`).toISOString();
+  if (hasWindow && !problem) {
+    const pickup = parseVnDateTimeLocal(`${params.pickup}T00:00`)!;
+    const ret = parseVnDateTimeLocal(`${params.return}T00:00`)!;
     const checks = await Promise.all(
       cars.map(async (car) => {
-        const { data: free } = await supabase.rpc("is_car_available", {
+        const { data: free, error } = await supabase.rpc("is_car_available", {
           p_car_id: car.id,
           p_pickup: pickup,
           p_return: ret,
         });
-        return { car, free: free !== false };
+        return { car, free: free === true, error: Boolean(error) || typeof free !== "boolean" };
       }),
     );
+    if (checks.some(check => check.error)) problem = "Chưa kiểm tra được lịch trống. Vui lòng thử lại.";
     cars = checks.filter((c) => c.free).map((c) => c.car);
   }
+  if (problem) cars = [];
 
   const days =
-    params.pickup && params.return
+    !problem && params.pickup && params.return
       ? Math.max(
           1,
           Math.ceil(
@@ -79,7 +90,7 @@ export default async function CarsPage({
           </div>
           <h1>Đội xe Lái Đi</h1>
           <p>
-            {hasWindow
+            {problem ? "Chọn lại bộ lọc hoặc thử lại để kiểm tra lịch xe." : hasWindow
               ? `${cars.length} xe còn trống cho ${params.pickup} → ${params.return} (${days} ngày).`
               : "Xe điện VinFast đời mới tại Đà Nẵng. Chọn ngày để kiểm tra lịch trống chính xác."}
           </p>
@@ -92,11 +103,9 @@ export default async function CarsPage({
             <div className="search-fields">
               <label className="field">
                 <span>Địa điểm</span>
-                <select name="location" defaultValue={params.location ?? "Đà Nẵng"}>
-                  <option>Đà Nẵng</option>
-                  <option>Sân bay quốc tế Đà Nẵng</option>
-                  <option>Trung tâm Hải Châu</option>
-                  <option>Ven biển Mỹ Khê</option>
+                <select name="location" defaultValue={selectedLocation?.id ?? ""}>
+                  <option value="">Tất cả địa điểm</option>
+                  {(locations ?? []).map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
               </label>
               <label className="field">
@@ -137,7 +146,7 @@ export default async function CarsPage({
             </div>
           </form>
 
-          {cars.length ? (
+          {problem ? <p className="form-message error" role="alert">{problem}</p> : cars.length ? (
             <div className="fleet-grid">
               {cars.map((car) => (
                 <CarCard key={car.id} car={car} />

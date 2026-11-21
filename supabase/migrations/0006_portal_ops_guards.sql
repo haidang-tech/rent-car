@@ -1,13 +1,7 @@
 begin;
 
-alter table public.payments add constraint payments_amount_nonnegative check (amount >= 0);
-alter table public.vehicle_checks add constraint vehicle_checks_fees_nonnegative check (fees >= 0);
+-- Shared monetary and car odometer checks are installed by 0005.
 alter table public.vehicle_checks add constraint vehicle_checks_odometer_nonnegative check (odometer is null or odometer >= 0);
-alter table public.fines add constraint fines_amount_nonnegative check (amount >= 0);
-alter table public.pricing_rules add constraint pricing_rules_amount_nonnegative check (amount >= 0);
-alter table public.maintenance_orders add constraint maintenance_orders_estimate_nonnegative check (estimate >= 0);
-alter table public.maintenance_orders add constraint maintenance_orders_actual_nonnegative check (actual is null or actual >= 0);
-alter table public.cars add constraint cars_odometer_nonnegative check (odometer >= 0);
 
 create or replace function public.record_handover(
   p_booking_id uuid,

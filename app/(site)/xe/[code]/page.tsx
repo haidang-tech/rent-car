@@ -1,11 +1,12 @@
-import Image from "next/image";
+import { CarImage } from "@/components/car-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { BookingForm } from "@/components/booking-form";
 import { fuelLabel } from "@/components/car-card";
-import { currency } from "@/lib/format";
+import { CAR_STATUS, currency } from "@/lib/format";
+import { vnDateKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,10 @@ export default async function CarDetailPage({
 
   const profile = await getProfile();
   const locationNames = (locations ?? []).map((l) => l.name as string);
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const returnDay = new Date(tomorrow);
+  returnDay.setUTCDate(returnDay.getUTCDate() + 3);
 
   return (
     <>
@@ -51,7 +56,7 @@ export default async function CarDetailPage({
           </h1>
           <p>
             {car.category} · {car.seats} chỗ · {car.plate} ·{" "}
-            {car.status === "available" ? "Sẵn sàng" : "Đang cho thuê"}
+            {CAR_STATUS[car.status]?.label ?? "Chưa sẵn sàng"}
           </p>
         </div>
       </section>
@@ -60,7 +65,7 @@ export default async function CarDetailPage({
         <div className="container detail-grid">
           <div>
             <div className="detail-media">
-              <Image
+              <CarImage
                 src={car.image_url || "/images/vf5.png"}
                 alt={`${car.brand} ${car.model}`}
                 width={1050}
@@ -115,10 +120,14 @@ export default async function CarDetailPage({
           <aside className="sticky-card">
             <BookingForm
               carId={car.id}
+              initialDates={{ pickup: `${vnDateKey(tomorrow)}T09:00`, return: `${vnDateKey(returnDay)}T18:00` }}
               pricePerDay={Number(car.price_per_day)}
               deposit={Number(car.deposit)}
               locations={locationNames}
               locationError={locationError?.message}
+              signedIn={Boolean(profile)}
+              loginNext={`/xe/${car.code}`}
+              unavailable={!["available", "rented"].includes(car.status)}
               defaults={{
                 name: profile?.full_name ?? "",
                 phone: profile?.phone ?? "",

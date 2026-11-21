@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import { createBookingAction, type BookingState } from "@/lib/actions/bookings";
 import { currency, daysBetween } from "@/lib/format";
+import { parseVnDateTimeLocal } from "@/lib/time";
+import { validateDateWindow } from "@/lib/validation";
 
 type Props = {
   carId: string;
@@ -11,39 +13,26 @@ type Props = {
   deposit: number;
   locations: string[];
   locationError?: string;
+  signedIn?: boolean;
+  unavailable?: boolean;
+  loginNext?: string;
+  initialDates: { pickup: string; return: string };
   defaults: { name: string; phone: string; email: string };
 };
 
-const localInput = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-export function BookingForm({ carId, pricePerDay, deposit, locations, locationError, defaults }: Props) {
-  const start = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return d;
-  }, []);
-  const end = useMemo(() => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + 3);
-    d.setHours(18, 0, 0, 0);
-    return d;
-  }, [start]);
-
-  const [pickup, setPickup] = useState(localInput(start));
-  const [ret, setRet] = useState(localInput(end));
+export function BookingForm({ carId, pricePerDay, deposit, locations, locationError, defaults, initialDates, signedIn = false, unavailable = false, loginNext = "/xe" }: Props) {
+  const [pickup, setPickup] = useState(initialDates.pickup);
+  const [ret, setRet] = useState(initialDates.return);
   const [state, formAction, pending] = useActionState<BookingState, FormData>(
     createBookingAction,
     null,
   );
 
-  const days =
-    pickup && ret && new Date(ret) > new Date(pickup)
-      ? daysBetween(pickup, ret)
-      : 1;
+  const pickupIso = parseVnDateTimeLocal(pickup);
+  const returnIso = parseVnDateTimeLocal(ret);
+  const dateError = validateDateWindow(pickupIso ?? "", returnIso ?? "") ||
+    (pickupIso && returnIso && daysBetween(pickupIso, returnIso) > 30 ? "Thời gian thuê tối đa 30 ngày." : null);
+  const days = !dateError && pickupIso && returnIso ? daysBetween(pickupIso, returnIso) : 0;
   const rental = days * pricePerDay;
 
   if (state?.success) {
@@ -52,13 +41,12 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
         <h2>Đã gửi yêu cầu đặt xe</h2>
         <p className="form-message success">{state.success}</p>
         <p className="muted" style={{ marginTop: 12 }}>
-          Lái Đi sẽ gọi xác nhận trong 15 phút. Bạn có thể theo dõi trạng thái
-          đơn trong mục “Đơn của tôi”.
+          {signedIn ? "Lái Đi sẽ gọi xác nhận. Bạn có thể theo dõi trạng thái đơn trong mục “Đơn của tôi”." : "Lái Đi sẽ liên hệ theo số điện thoại bạn đã cung cấp. Hãy lưu mã đơn để trao đổi với cơ sở; đơn khách vãng lai chưa được liên kết với tài khoản."}
         </p>
         <div className="form-actions">
-          <Link className="button" href="/tai-khoan">
+          {signedIn && <Link className="button" href="/tai-khoan">
             Xem đơn của tôi →
-          </Link>
+          </Link>}
           <Link className="button ghost" href="/xe">
             Chọn xe khác
           </Link>
@@ -68,14 +56,14 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
   }
 
   return (
-    <form className="card" action={formAction}>
+    <form className="card" action={formAction} onSubmit={event => { if (dateError || unavailable) event.preventDefault(); }}>
       <input type="hidden" name="car_id" value={carId} />
       <h2>Đặt xe</h2>
       <p>Điền thông tin, Lái Đi xác nhận qua điện thoại trong 15 phút.</p>
 
       <div className="form-grid" style={{ marginTop: 16 }}>
         <label className="field">
-          <span>Ngày &amp; giờ nhận</span>
+          <span>Ngày &amp; giờ nhận (Việt Nam)</span>
           <input
             name="pickup_at"
             type="datetime-local"
@@ -85,7 +73,7 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
           />
         </label>
         <label className="field">
-          <span>Ngày &amp; giờ trả</span>
+          <span>Ngày &amp; giờ trả (Việt Nam)</span>
           <input
             name="return_at"
             type="datetime-local"
@@ -107,7 +95,7 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
         </label>
         <label className="field">
           <span>Họ tên người thuê</span>
-          <input name="customer_name" defaultValue={defaults.name} required />
+          <input name="customer_name" defaultValue={defaults.name} minLength={2} maxLength={120} required />
         </label>
         <label className="field">
           <span>Số điện thoại</span>
@@ -115,17 +103,20 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
             name="customer_phone"
             defaultValue={defaults.phone}
             inputMode="tel"
+            pattern="(0[0-9]{9}|\+84[0-9]{9})"
+            title="Số điện thoại gồm 10 chữ số bắt đầu bằng 0 hoặc +84 và 9 chữ số."
             required
           />
         </label>
         <label className="field full">
           <span>Email</span>
-          <input name="customer_email" type="email" defaultValue={defaults.email} />
+          <input name="customer_email" type="email" maxLength={254} defaultValue={defaults.email} />
         </label>
         <label className="field full">
           <span>Ghi chú</span>
           <textarea
             name="note"
+            maxLength={2000}
             placeholder="Giờ hạ cánh, khách sạn nhận xe, yêu cầu thêm…"
           />
         </label>
@@ -143,17 +134,20 @@ export function BookingForm({ carId, pricePerDay, deposit, locations, locationEr
           <span>{currency(deposit)}</span>
         </div>
         <div className="total">
-          <span>Tổng thanh toán</span>
+          <span>Tổng dự kiến</span>
           <span>{currency(rental + deposit)}</span>
         </div>
       </div>
 
       {state?.error ? <p className="form-message error">{state.error}</p> : null}
+      {dateError ? <p className="form-message error" role="alert">{dateError}</p> : null}
+      {unavailable ? <p className="form-message error" role="status">Xe hiện không nhận đặt chỗ. Vui lòng chọn xe khác.</p> : null}
       {locationError ? <p className="form-message error" role="alert">Không tải được địa điểm nhận xe. Vui lòng thử lại sau.</p> : !locations.length ? <p className="form-message error" role="status">Hiện chưa có điểm nhận đang hoạt động. Chưa thể gửi yêu cầu thuê.</p> : null}
 
-      <button className="button" type="submit" disabled={pending || !locations.length || Boolean(locationError)} style={{ width: "100%" }}>
+      <button className="button" type="submit" disabled={pending || unavailable || Boolean(dateError) || !locations.length || Boolean(locationError)} style={{ width: "100%" }}>
         {pending ? "Đang gửi…" : "Gửi yêu cầu đặt xe →"}
       </button>
+      {!signedIn && <p className="field-hint"><Link href={`/dang-nhap?next=${encodeURIComponent(loginNext)}`}>Đăng nhập</Link> trước khi đặt để quản lý chuyến trực tuyến.</p>}
       <p className="field-hint" style={{ marginTop: 10 }}>
         Bạn chưa bị trừ tiền ở bước này. Lái Đi xác nhận lịch xe trước khi thanh
         toán.

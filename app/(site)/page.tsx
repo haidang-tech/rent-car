@@ -10,12 +10,13 @@ export default async function HomePage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("cars")
-    .select("id, code, plate, brand, model, category, seats, transmission, fuel, price_per_day, status, image_url, rating")
+    .select("id, code, plate, brand, model, category, seats, transmission, fuel, price_per_day, deposit, status, image_url, rating")
     .in("status", ["available", "rented"])
     .order("price_per_day")
     .limit(6);
 
   const cars = (data ?? []) as CarCardData[];
+  const { data: locations } = await supabase.from("locations").select("id,name").eq("active", true).order("name");
   const fromPrice = cars.length
     ? Math.min(...cars.map((c) => Number(c.price_per_day)))
     : 690000;
@@ -67,11 +68,9 @@ export default async function HomePage() {
             <div className="search-fields">
               <label className="field">
                 <span>Địa điểm nhận xe</span>
-                <select name="location" defaultValue="Đà Nẵng">
-                  <option>Đà Nẵng</option>
-                  <option>Sân bay quốc tế Đà Nẵng</option>
-                  <option>Trung tâm Hải Châu</option>
-                  <option>Ven biển Mỹ Khê</option>
+                <select name="location" defaultValue="">
+                  <option value="">Tất cả địa điểm</option>
+                  {(locations ?? []).map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
               </label>
               <label className="field">

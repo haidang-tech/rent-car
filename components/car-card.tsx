@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CarImage } from "@/components/car-image";
 import Link from "next/link";
 import { currency } from "@/lib/format";
 
@@ -13,6 +13,7 @@ export type CarCardData = {
   transmission: string;
   fuel: string;
   price_per_day: number;
+  deposit?: number;
   status: string;
   image_url: string | null;
   rating: number | null;
@@ -22,7 +23,7 @@ export function CarCard({ car }: { car: CarCardData }) {
   return (
     <article className="car-card">
       <div className="car-media">
-        <Image
+        <CarImage
           src={car.image_url || "/images/vf5.png"}
           alt={`${car.brand} ${car.model}`}
           fill
@@ -48,7 +49,7 @@ export function CarCard({ car }: { car: CarCardData }) {
         <div className="car-foot">
           <div className="car-price">
             <strong>{currency(car.price_per_day)}</strong>
-            <small>/ ngày · cọc {currency(0)}</small>
+            <small>/ ngày{car.deposit != null ? ` · cọc ${currency(car.deposit)}` : ""}</small>
           </div>
           <Link className="button small" href={`/xe/${car.code}`}>
             Chi tiết →

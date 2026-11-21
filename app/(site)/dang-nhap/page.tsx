@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { SignInForm } from "@/components/auth-forms";
-import { getSession } from "@/lib/auth";
+import { getSession, getProfile, ROLE_HOME } from "@/lib/auth";
 
 export const metadata = { title: "Đăng nhập" };
 
@@ -10,7 +10,10 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const session = await getSession();
-  if (session) redirect("/tai-khoan");
+  if (session) {
+    const profile = await getProfile();
+    redirect(profile ? ROLE_HOME[profile.role] : "/auth/reset-session");
+  }
   const { next } = await searchParams;
 
   return (

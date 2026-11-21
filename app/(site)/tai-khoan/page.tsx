@@ -1,10 +1,11 @@
-import Image from "next/image";
+import { CarImage } from "@/components/car-image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, ROLE_HOME } from "@/lib/auth";
 import { ACCOUNT_ROUTES, type Trip } from "@/lib/customer-portal";
 import { BOOKING_STATUS, currency, dateTime } from "@/lib/format";
+import { selectCurrentTrip, tripRouteApplies } from "@/lib/customer-state";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Đơn của tôi" };
@@ -23,7 +24,7 @@ export default async function AccountPage({
   const { loc } = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("bookings")
     .select(
       "*, cars(id, code, brand, model, seats, fuel, transmission, image_url, price_per_day, status)",
@@ -31,9 +32,10 @@ export default async function AccountPage({
     .eq("user_id", profile.id)
     .order("created_at", { ascending: false });
 
+  if (error) throw new Error("Không tải được danh sách chuyến thuê. Vui lòng thử lại.");
   const bookings = (data ?? []) as unknown as Trip[];
   const active = bookings.filter((trip) => ACTIVE_STATUSES.includes(trip.status));
-  const current = active[0] ?? null;
+  const current = selectCurrentTrip(active);
   const shown =
     loc === "active"
       ? active
@@ -90,7 +92,7 @@ export default async function AccountPage({
                 </Link>
               </div>
               <div className="quick-grid">
-                {QUICK_ACTIONS.map(([segment, label]) => (
+                {QUICK_ACTIONS.filter(([segment]) => tripRouteApplies(segment, current.status)).map(([segment, label]) => (
                   <Link key={segment} href={`/tai-khoan/${current.code}/${segment}`}>
                     {label}
                   </Link>
@@ -125,7 +127,7 @@ export default async function AccountPage({
             {shown.length ? (
               shown.map((trip) => (
                 <article className="booking-row" key={trip.id}>
-                  <Image
+                  <CarImage
                     className="thumb"
                     src={trip.cars?.image_url || "/images/vf5.png"}
                     alt=""
